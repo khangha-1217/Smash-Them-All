@@ -24,15 +24,15 @@
 
 **Goal** — Define shared interfaces and cross-layer primitives before gameplay work.
 
-- [ ] T006 Define `Vec3`, round configuration, `GameState`, round data/result, combo, cockroach, weapon, achievement, profile, hit result and map metadata in `src/core/types.ts` using [data-model.md](data-model.md). Use the field constraints listed directly below. After T005.
+- [X] T006 Define `Vec3`, round configuration, `GameState`, round data/result, combo, cockroach, weapon, achievement, profile, hit result and map metadata in `src/core/types.ts` using [data-model.md](data-model.md). Use the field constraints listed directly below. After T005.
   - Round and combo — `mapId` is `'kitchen' | 'livingroom' | 'bedroom'`, `mode` is `'normal' | 'hell'`, `weaponId` is `'slipper' | 'flyswatter' | 'cardboard'` and `rank` is `'S' | 'A' | 'B' | 'C' | null`. Use “Countdown from 90.0, based on real elapsed time”, `number (integer)` for score/counts, `hits / swings` (0 if no swings) and `swings - hits`. Use `number (integer, ≥ 1)`, `number (ms timestamp)` and `number (constant: 2000)` for the combo fields.
   - Cockroach — `state` is `'idle' | 'crawling' | 'preflight' | 'flying'`. `targetWaypoint` is `{x, y, z} | null` and `flightCurve` is `BezierCurve | null`. Use “Movement speed (0.5–1.2 for crawl)”, “0.06 crawling. Flying is 1.3× the crawling radius (0.078m).” and `number (0–1)` for flight progress.
   - Weapon — `swingStartTime` is `number | null` and `swingDurationMs` is `number (constant: 300)`. “No new swing accepted while `isSwinging && (now - swingStartTime < swingDurationMs)`.”
   - Achievement and profile — “`id` is unique across all achievements. Once unlocked, stays unlocked forever (until localStorage cleared). Duplicate unlock attempts are no-ops.” Use `Record<string, boolean>` for unlocks, `Record<string, number>` keyed by `${mapId}_${mode}` for best scores, `string[]` for played map/weapon IDs and `'vi' | 'en'` for language.
   - Hit and map — `type` is `'hit' | 'near_miss' | 'miss'`. `target` is `Cockroach | null` with “Hit cockroach (null if miss/near-miss)” and points are “Points awarded (0 if miss)”. `nearMiss` is `{cockroachId, position, distance} | null` and carries the qualifying cockroach and ray clearance on a near-miss. Carry `Array<{position, surfaceType, surfaceNormal}>` for spawns/waypoints, `{position, rotation}` for player start, `Array<{min, max}>` for colliders and `{min, max}` for room bounds.
-- [ ] T007 [P] Implement typed pub/sub in `src/utils/event-emitter.ts` using [the event contract](contracts/event-bus.md). Keep the Core independent of Three.js, DOM and Web Audio. Events notify other layers and input calls commands directly. After T006.
-- [ ] T008 [P] Add pure vector, clamp, lerp and quadratic Bézier helpers in `src/utils/math-utils.ts`. After T006.
-- [ ] T009 [P] Add `src/utils/storage.ts` for [the storage contract](contracts/storage-schema.md). Use the exact JSON keys and defaults, validate stored values on read and keep an in-memory profile for the current session when access, parsing or writes fail. After T006.
+- [X] T007 [P] Implement typed pub/sub in `src/utils/event-emitter.ts` using [the event contract](contracts/event-bus.md). Keep the Core independent of Three.js, DOM and Web Audio. Events notify other layers and input calls commands directly. After T006.
+- [X] T008 [P] Add pure vector, clamp, lerp and quadratic Bézier helpers in `src/utils/math-utils.ts`. After T006.
+- [X] T009 [P] Add `src/utils/storage.ts` for [the storage contract](contracts/storage-schema.md). Use the exact JSON keys and defaults, validate stored values on read and keep an in-memory profile for the current session when access, parsing or writes fail. After T006.
 
 ## Phase 3 — US1 · Quick Stress-Relief Round (P1, MVP)
 
