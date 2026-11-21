@@ -86,13 +86,13 @@
 
 **Independent test** — Run V2 in Kitchen. Confirm the 1.5s warning, accelerating flight, 250 base points, higher rank thresholds and contact recycling without damage.
 
-- [ ] T049 [P] [US2] Extend `tests/core/cockroach-ai.test.ts` with red cases for Hell-only scheduling at 3–8s, 1.5s preflight, accelerating Bézier motion, jitter and curve completion. After T048.
-- [ ] T050 [P] [US2] Extend `tests/core/round.test.ts` with red cases for higher Hell density, the 1.3× radius (0.078m) when a cockroach enters `FLYING`, 250 base points, preflight/flight events and recycling on contact without a kill or damage. After T048.
-- [ ] T051 [US2] Implement preflight and flight behavior in `src/core/cockroach-ai.ts` using the elevated midpoint and jittered camera target. After T049.
-- [ ] T052 [US2] Extend `src/core/round.ts` with Hell spawn density (tunable pool of 25–40), `COCKROACH_PREFLIGHT` / `COCKROACH_FLYING`, the 1.3× hitbox radius for the `FLYING` state and `reached_player` despawn/recycling. After T051, T050.
-- [ ] T053 [P] [US2] Play wing/flight clips from Core state in `src/rendering/cockroach-renderer.ts` while consuming the position calculated by the Core. After T048.
-- [ ] T054 [P] [US2] Add the pink Hell badge and preflight warning to `src/ui/hud.ts`. After T048.
-- [ ] T055 [US2] Enable Normal/Hell selection in `src/ui/start-screen.ts` and pass the chosen mode through the existing round config. Run V2 and the draw-call/triangle check in [quickstart.md](quickstart.md#frame-budget-check-p1-and-release) for Kitchen/Hell before closing US2. After T052, T053, T054.
+- [X] T049 [P] [US2] Extend `tests/core/cockroach-ai.test.ts` with red cases for Hell-only scheduling at 3–8s, 1.5s preflight, accelerating Bézier motion, jitter and curve completion. After T048.
+- [X] T050 [P] [US2] Extend `tests/core/round.test.ts` with red cases for higher Hell density, the 1.3× radius (0.078m) when a cockroach enters `FLYING`, 250 base points, preflight/flight events and recycling on contact without a kill or damage. After T048.
+- [X] T051 [US2] Implement preflight and flight behavior in `src/core/cockroach-ai.ts` using the elevated midpoint and jittered camera target. After T049.
+- [X] T052 [US2] Extend `src/core/round.ts` with Hell spawn density (tunable pool of 25–40), `COCKROACH_PREFLIGHT` / `COCKROACH_FLYING`, the 1.3× hitbox radius for the `FLYING` state and `reached_player` despawn/recycling. After T051, T050.
+- [X] T053 [P] [US2] Play wing/flight clips from Core state in `src/rendering/cockroach-renderer.ts` while consuming the position calculated by the Core. After T048.
+- [X] T054 [P] [US2] Add the pink Hell badge and preflight warning to `src/ui/hud.ts`. After T048.
+- [X] T055 [US2] Enable Normal/Hell selection in `src/ui/start-screen.ts` and pass the chosen mode through the existing round config. Run V2 and the draw-call/triangle check in [quickstart.md](quickstart.md#frame-budget-check-p1-and-release) for Kitchen/Hell before closing US2. After T052, T053, T054.
 
 ## Phase 5 — US3 · Exploring Different Rooms (P2)
 

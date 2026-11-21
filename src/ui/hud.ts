@@ -11,6 +11,8 @@ export class Hud {
   private readonly score = element('strong', 'score-value');
   private readonly combo = element('div', 'chip combo');
   private readonly kills = element('strong', 'kill-value');
+  private readonly flightWarning = element('div', 'chip flight-warning', '⚠️ Nó bay!');
+  private readonly preparingToFly = new Set<number>();
 
   constructor(events: EventEmitter) {
     const board = element('div', 'scoreboard');
@@ -32,7 +34,9 @@ export class Hud {
 
     this.effects.setAttribute('aria-hidden', 'true');
     this.reticle.setAttribute('aria-hidden', 'true');
-    this.root.append(this.mode, board, this.combo, killBadge, controls, this.reticle, this.effects);
+    this.flightWarning.setAttribute('role', 'status');
+    this.flightWarning.hidden = true;
+    this.root.append(this.mode, board, this.combo, killBadge, controls, this.reticle, this.effects, this.flightWarning);
     this.root.hidden = true;
 
     events.on('ROUND_STARTED', ({ mode }) => this.reset(mode));
@@ -41,15 +45,31 @@ export class Hud {
     events.on('KILL_COUNT_UPDATED', ({ kills }) => { this.kills.textContent = this.format(kills); });
     events.on('COMBO_UPDATED', ({ multiplier }) => this.updateCombo(multiplier));
     events.on('COMBO_RESET', () => this.updateCombo(1));
+    events.on('COCKROACH_PREFLIGHT', ({ cockroachId }) => {
+      this.preparingToFly.add(cockroachId);
+      this.flightWarning.hidden = false;
+      this.flightWarning.classList.remove('pop');
+      void this.flightWarning.offsetWidth;
+      this.flightWarning.classList.add('pop');
+    });
+    events.on('COCKROACH_FLYING', ({ cockroachId }) => this.clearFlightWarning(cockroachId));
+    events.on('COCKROACH_DESPAWNED', ({ cockroachId }) => this.clearFlightWarning(cockroachId));
   }
 
   private reset(mode: GameMode): void {
+    this.preparingToFly.clear();
+    this.flightWarning.hidden = true;
     this.mode.dataset.mode = mode;
     this.mode.textContent = mode === 'hell' ? 'Địa ngục' : 'Thường';
     this.updateTimer(90);
     this.score.textContent = this.format(0);
     this.kills.textContent = this.format(0);
     this.updateCombo(1);
+  }
+
+  private clearFlightWarning(cockroachId: number): void {
+    this.preparingToFly.delete(cockroachId);
+    this.flightWarning.hidden = this.preparingToFly.size === 0;
   }
 
   private updateTimer(seconds: number): void {

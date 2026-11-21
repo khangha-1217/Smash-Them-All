@@ -1,6 +1,7 @@
 import type { EventEmitter } from '../utils/event-emitter';
 import { clamp } from '../utils/math-utils';
 import { CockroachAI, createCockroach } from './cockroach-ai';
+import type { FlightPhaseChange } from './cockroach-ai';
 import { ComboTracker } from './combo';
 import { detectHit } from './hit-detection';
 import { ObjectPool } from './object-pool';
@@ -12,16 +13,19 @@ import { SWING_DURATION_MS } from './types';
 import type { Cockroach, MapData, Rank, Round, RoundConfig, RoundResult, Vec3 } from './types';
 
 const DEFAULT_NORMAL_POOL_SIZE = 20;
+const DEFAULT_HELL_POOL_SIZE = 32;
 const RESPAWN_DELAY_MS = 350;
 
 export interface RoundOptions {
   normalPoolSize?: number;
+  hellPoolSize?: number;
   random?: () => number;
 }
 
 interface RoundResources {
   ai: CockroachAI;
   pool: ObjectPool<Cockroach>;
+  population: number;
 }
 
 type Navigation = Pick<MapData, 'spawnPoints' | 'waypoints'>;
@@ -32,9 +36,11 @@ export class RoundController {
   private readonly scoring: Scoring;
   private readonly combo: ComboTracker;
   private readonly normalPoolSize: number;
+  private readonly hellPoolSize: number;
   private readonly random: () => number;
   private config: RoundConfig | null = null;
   private resources: RoundResources | null = null;
+  private playerPosition?: Vec3;
   private readonly respawnsAt: number[] = [];
   private swingAvailableAt = 0;
   private swings = 0;
@@ -43,10 +49,13 @@ export class RoundController {
   private dispatching = false;
 
   constructor(private readonly events: EventEmitter, options: RoundOptions = {}) {
-    const { normalPoolSize = DEFAULT_NORMAL_POOL_SIZE, random = Math.random } = options;
+    const { normalPoolSize = DEFAULT_NORMAL_POOL_SIZE, hellPoolSize = DEFAULT_HELL_POOL_SIZE, random = Math.random } = options;
     this.normalPoolSize = Number.isFinite(normalPoolSize)
       ? clamp(Math.trunc(normalPoolSize), 15, 25)
       : DEFAULT_NORMAL_POOL_SIZE;
+    this.hellPoolSize = Number.isFinite(hellPoolSize)
+      ? clamp(Math.trunc(hellPoolSize), 25, 40)
+      : DEFAULT_HELL_POOL_SIZE;
     this.random = random;
     this.machine = new StateMachine(events);
     this.timer = new Timer(events, () => this.finish());
@@ -94,9 +103,12 @@ export class RoundController {
         this.machine.transition('MENU');
         return false;
       }
+      const mode = this.config!.mode;
+      const population = mode === 'hell' ? this.hellPoolSize : this.normalPoolSize;
       this.resources = {
-        ai: new CockroachAI([...spawnPoints], [...waypoints], this.random),
-        pool: new ObjectPool(this.normalPoolSize, createCockroach, (slot) => { slot.alive = false; }),
+        ai: new CockroachAI([...spawnPoints], [...waypoints], this.random, mode),
+        pool: new ObjectPool(population, createCockroach, (slot) => { slot.alive = false; }),
+        population,
       };
       return this.machine.transition('READY');
     });
@@ -110,7 +122,7 @@ export class RoundController {
       this.machine.transition('PLAYING');
       this.events.emit('ROUND_STARTED', { ...this.config! });
       this.timer.start();
-      for (let count = 0; count < this.normalPoolSize; count++) this.spawn(resources);
+      for (let count = 0; count < resources.population; count++) this.spawn(resources);
       return true;
     });
   }
@@ -155,6 +167,13 @@ export class RoundController {
     });
   }
 
+  updatePlayerPosition({ x, y, z }: Vec3): void {
+    this.command(() => {
+      if (this.state !== 'PLAYING' || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return;
+      this.playerPosition = { x, y, z };
+    });
+  }
+
   swing(position: Vec3, direction: Vec3): boolean {
     return this.command(() => {
       const activeMs = this.timer.elapsedMs;
@@ -196,7 +215,7 @@ export class RoundController {
       const resources = this.resources!;
       this.combo.update(activeMs);
       for (const cockroach of resources.pool.active) {
-        resources.ai.update(cockroach, elapsedMs);
+        const reachedPlayer = resources.ai.update(cockroach, elapsedMs, this.playerPosition, this.emitFlightPhase);
         const { x, y, z } = cockroach.surfaceNormal;
         this.events.emit('COCKROACH_MOVED', {
           cockroachId: cockroach.id,
@@ -205,6 +224,11 @@ export class RoundController {
           rotation: { x: Math.atan2(z, y), y: 0, z: Math.atan2(-x, Math.hypot(y, z)) },
           state: cockroach.state,
         });
+        if (reachedPlayer) {
+          resources.pool.release(cockroach);
+          this.respawnsAt.push(activeMs + RESPAWN_DELAY_MS);
+          this.events.emit('COCKROACH_DESPAWNED', { cockroachId: cockroach.id, reason: 'reached_player' });
+        }
       }
       while (this.respawnsAt.length && this.respawnsAt[0] <= activeMs) {
         this.respawnsAt.shift();
@@ -212,6 +236,15 @@ export class RoundController {
       }
     });
   }
+
+  private readonly emitFlightPhase = (change: FlightPhaseChange): void => {
+    const { cockroachId, position } = change;
+    if (change.state === 'preflight') {
+      this.events.emit('COCKROACH_PREFLIGHT', { cockroachId, position });
+    } else {
+      this.events.emit('COCKROACH_FLYING', { cockroachId, position, velocity: change.velocity });
+    }
+  };
 
   private command<T>(action: () => T): T | false {
     // Listeners can read state during a notification. Mutating commands are applied between notifications.
@@ -251,6 +284,7 @@ export class RoundController {
 
   private reset(): void {
     this.resources = null;
+    this.playerPosition = undefined;
     this.respawnsAt.length = 0;
     this.swingAvailableAt = 0;
     this.swings = 0;

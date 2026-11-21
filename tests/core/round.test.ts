@@ -28,13 +28,122 @@ function setup(options: RoundOptions = { random: () => 0 }, events = new EventEm
     events.on(name, (payload) => payloads.push(payload));
     return payloads;
   }
-  function start(data = mapData) {
-    expect(round.configure(selection)).toBe(true);
+  function start(data = mapData, mode = selection.mode) {
+    expect(round.configure({ ...selection, mode })).toBe(true);
     expect(round.ready(data)).toBe(true);
     expect(round.start()).toBe(true);
   }
   return { events, record, round, start };
 }
+
+describe('Hell rounds', () => {
+  it.each([[5, 25], [32, 32], [55, 40], [NaN, 32]])('bounds the Hell pool at %s to %s active cockroaches', (hellPoolSize, expected) => {
+    const { record, start } = setup({ hellPoolSize, random: () => 0 });
+    const spawns = record('COCKROACH_SPAWNED');
+
+    start(mapData, 'hell');
+
+    expect(spawns).toHaveLength(expected);
+  });
+
+  it('warns before takeoff and freezes preflight and flight during pause', () => {
+    const { record, round, start } = setup({ hellPoolSize: 25, random: () => 0 });
+    const preflights = record('COCKROACH_PREFLIGHT');
+    const flights = record('COCKROACH_FLYING');
+    const movement = record('COCKROACH_MOVED');
+    start(mapData, 'hell');
+    round.updatePlayerPosition({ x: 0, y: 1.6, z: 3 });
+
+    round.tick(2_999);
+    expect(preflights).toHaveLength(0);
+    round.tick(1);
+    expect(preflights).toHaveLength(25);
+    expect(preflights[0]).toEqual({ cockroachId: 0, position: target });
+    round.tick(1_499);
+    expect(flights).toHaveLength(0);
+    round.pause();
+    round.tick(5_000);
+    expect(flights).toHaveLength(0);
+    round.resume();
+    round.tick(1);
+    expect(flights).toHaveLength(25);
+    expect(flights[0]).toMatchObject({ cockroachId: 0, position: target });
+    expect(flights[0].velocity.y).toBeGreaterThan(0);
+
+    round.tick(100);
+    const flyingPosition = movement.at(-1);
+    expect(flyingPosition?.state).toBe('flying');
+    expect(flyingPosition?.position).not.toEqual(target);
+    round.pause();
+    round.tick(5_000);
+    expect(movement.at(-1)).toEqual(flyingPosition);
+  });
+
+  it('accepts an edge hit only after takeoff and awards 250 base points', () => {
+    const { record, round, start } = setup({ hellPoolSize: 25, random: () => 0 });
+    const hits = record('COCKROACH_HIT');
+    const spawnPoints = [point({ x: 0.08, y: 0, z: 0.001 })];
+    start({ spawnPoints, waypoints: [] }, 'hell');
+
+    round.tick(4_000);
+    round.swing(origin, forward);
+    expect(hits).toHaveLength(0);
+    round.tick(500);
+    round.swing(origin, forward);
+
+    expect(hits).toEqual([expect.objectContaining({ points: 250, comboMultiplier: 1 })]);
+    expect(round.stats).toMatchObject({ score: 250, kills: 1, flyingKills: 1 });
+  });
+
+  it('awards ground points for hitting a cockroach during preflight', () => {
+    const { record, round, start } = setup();
+    const hits = record('COCKROACH_HIT');
+    const preflights = record('COCKROACH_PREFLIGHT');
+    const flights = record('COCKROACH_FLYING');
+    start(mapData, 'hell');
+
+    round.tick(3_000);
+    expect(preflights[0]?.cockroachId).toBe(0);
+    round.swing(origin, forward);
+    round.tick(1_500);
+
+    expect(hits).toEqual([expect.objectContaining({ cockroachId: 0, points: 100 })]);
+    expect(flights.some(({ cockroachId }) => cockroachId === 0)).toBe(false);
+    expect(round.stats).toMatchObject({ score: 100, kills: 1, flyingKills: 0 });
+  });
+
+  it('recycles each completed flight once at another spawn without awarding a kill or points', () => {
+    const { record, round, start } = setup({ hellPoolSize: 25, random: () => 0 });
+    const contact = record('COCKROACH_DESPAWNED');
+    const hits = record('COCKROACH_HIT');
+    const scores = record('SCORE_UPDATED');
+    const spawns = record('COCKROACH_SPAWNED');
+    const moves = record('COCKROACH_MOVED');
+    const secondSpawn = { x: 3, y: 0, z: 1 };
+    start({ spawnPoints: [point(target), point(secondSpawn)], waypoints: [] }, 'hell');
+
+    const camera = { x: 1, y: 1.6, z: 3 };
+    round.updatePlayerPosition(camera);
+    camera.x = 8;
+    round.updatePlayerPosition({ x: 1, y: NaN, z: 3 });
+    round.tick(6_499);
+    expect(contact).toHaveLength(0);
+    round.tick(1);
+    expect(contact).toHaveLength(25);
+    expect(contact[0]).toEqual({ cockroachId: 0, reason: 'reached_player' });
+    expect(new Set(contact.map(event => event.cockroachId)).size).toBe(25);
+    expect(hits).toEqual([]);
+    expect(scores).toEqual([]);
+    expect(round.stats).toMatchObject({ score: 0, kills: 0, flyingKills: 0 });
+    expect(round.state).toBe('PLAYING');
+    expect(moves.at(-1)?.position).toEqual({ x: 0.84, y: 1.5, z: 2.84 });
+
+    round.tick(350);
+    expect(spawns).toHaveLength(50);
+    expect(spawns.slice(25).every(({ position }) => position.x === secondSpawn.x)).toBe(true);
+    expect(contact).toHaveLength(25);
+  });
+});
 
 describe('RoundController', () => {
   it('starts only from READY, then emits one start and one completed result on expiry', () => {

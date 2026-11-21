@@ -2,7 +2,7 @@ import type { RoundConfig } from '../core/types';
 import { button, element } from './dom';
 
 const MAPS = [{ id: 'kitchen', label: 'Nhà bếp' }] as const;
-const MODES = [{ id: 'normal', label: 'Thường' }] as const;
+const MODES = [{ id: 'normal', label: 'Thường' }, { id: 'hell', label: 'Địa ngục' }] as const;
 const WEAPONS = [{ id: 'slipper', label: 'Dép' }] as const;
 
 const DEFAULT_SELECTION: RoundConfig = { mapId: 'kitchen', mode: 'normal', weaponId: 'slipper' };

@@ -11,8 +11,7 @@ interface RoachView {
   mesh: Object3D;
   root: Group;
   mixer: AnimationMixer;
-  idle: AnimationAction;
-  crawl: AnimationAction;
+  actions: Record<CockroachState, AnimationAction>;
   active: AnimationAction;
   position: Vector3;
   facing: Vector3;
@@ -37,7 +36,10 @@ export class CockroachRenderer {
   constructor(private readonly model: GLTF, count: number, private readonly spawns: SurfacePoint[]) {
     const idleClip = model.animations.find(clip => clip.name === 'idle');
     const crawlClip = model.animations.find(clip => clip.name === 'crawl');
-    if (!idleClip || !crawlClip) throw new Error('Cockroach is missing idle or crawl animation');
+    const flyClip = model.animations.find(clip => clip.name === 'fly');
+    if (!idleClip || !crawlClip || !flyClip) throw new Error('Cockroach is missing an idle, crawl or fly animation');
+    // The first frame of the flight clip holds the wings open before takeoff.
+    const wingsOpenClip = flyClip.clone();
 
     shadeModel(model.scene);
     for (let index = 0; index < count; index++) {
@@ -48,10 +50,14 @@ export class CockroachRenderer {
       this.group.add(root);
 
       const mixer = new AnimationMixer(mesh);
-      const idle = mixer.clipAction(idleClip);
-      const crawl = mixer.clipAction(crawlClip);
+      const actions = {
+        idle: mixer.clipAction(idleClip),
+        crawling: mixer.clipAction(crawlClip),
+        preflight: mixer.clipAction(wingsOpenClip).setEffectiveTimeScale(0),
+        flying: mixer.clipAction(flyClip),
+      };
       this.views.push({
-        mesh, root, mixer, idle, crawl, active: idle,
+        mesh, root, mixer, actions, active: actions.idle,
         position: new Vector3(), facing: CRAWL_FORWARD.clone(), up: FLOOR_NORMAL.clone(),
         orientation: new Quaternion(),
       });
@@ -69,7 +75,7 @@ export class CockroachRenderer {
     view.root.position.copy(view.position);
     view.root.quaternion.copy(view.orientation);
     view.root.visible = true;
-    view.active = view.idle.reset().play();
+    view.active = view.actions.idle.reset().play();
     view.mixer.update(0);
     this.byId.set(cockroachId, view);
   }
@@ -77,6 +83,21 @@ export class CockroachRenderer {
   moveTo({ cockroachId, position, rotation, state }: GameEvents['COCKROACH_MOVED']): void {
     const view = this.byId.get(cockroachId);
     if (!view) return;
+    if (state === 'flying') {
+      this.move.copy(position).sub(view.position);
+      if (view.active !== view.actions.flying) this.move.addScaledVector(view.up, MODEL_FOOT_OFFSET);
+      if (this.move.lengthSq() > 1e-8) {
+        view.facing.copy(this.move).normalize();
+        view.up.copy(FLOOR_NORMAL).projectOnPlane(view.facing);
+        if (view.up.lengthSq() < 1e-8) view.up.copy(CRAWL_FORWARD).projectOnPlane(view.facing);
+        view.up.normalize();
+        this.setOrientation(view);
+      }
+      view.position.copy(position);
+      view.root.position.copy(view.position);
+      this.animate(view, state);
+      return;
+    }
 
     this.tilt.set(rotation.x, rotation.y, rotation.z);
     view.up.copy(FLOOR_NORMAL).applyEuler(this.tilt);
@@ -127,6 +148,10 @@ export class CockroachRenderer {
       view.facing.projectOnPlane(view.up);
     }
     view.facing.normalize();
+    this.setOrientation(view);
+  }
+
+  private setOrientation(view: RoachView): void {
     this.back.copy(view.facing).negate();
     this.right.crossVectors(view.up, this.back).normalize();
     this.basis.makeBasis(this.right, view.up, this.back);
@@ -134,7 +159,7 @@ export class CockroachRenderer {
   }
 
   private animate(view: RoachView, state: CockroachState): void {
-    const action = state === 'crawling' ? view.crawl : view.idle;
+    const action = view.actions[state];
     if (view.active === action) return;
 
     view.active.fadeOut(0.1);

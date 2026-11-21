@@ -297,6 +297,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     const seconds = Math.min(elapsedMs, 50) / 1_000;
     if (round.state === 'PLAYING') {
       const walking = input.update(seconds);
+      round.updatePlayerPosition(scene.camera.position);
       round.tick(elapsedMs);
       if (round.state === 'PLAYING') {
         roaches?.update(seconds);

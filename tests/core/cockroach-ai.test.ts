@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CockroachAI, createCockroach } from '../../src/core/cockroach-ai';
-import type { SurfacePoint } from '../../src/core/types';
+import type { GameMode, SurfacePoint } from '../../src/core/types';
 
 const floor = { x: 0, y: 1, z: 0 };
 const wall = { x: -1, y: 0, z: 0 };
@@ -83,6 +83,20 @@ describe('CockroachAI', () => {
     expect(cockroach.position).toEqual(start.position);
   });
 
+  it('does not crawl directly between opposite walls that share a tag', () => {
+    const alongWall: SurfacePoint = { ...adjacent, position: { x: 0.5, y: 0.5, z: 2 } };
+    const oppositeWall: SurfacePoint = {
+      ...adjacent, position: { x: -3, y: 0.5, z: 0 }, surfaceNormal: { x: 1, y: 0, z: 0 },
+    };
+    const ai = new CockroachAI([adjacent], [alongWall, oppositeWall], draws(0, 0, 0.5, 0.75));
+    const cockroach = createCockroach(0);
+    ai.spawn(cockroach);
+
+    ai.update(cockroach, 300);
+
+    expect(cockroach.targetWaypoint).toEqual(alongWall.position);
+  });
+
   it('leaves an inactive cockroach untouched if no spawn is available', () => {
     const ai = new CockroachAI([], [], () => 0);
     const cockroach = createCockroach(12);
@@ -124,5 +138,69 @@ describe('CockroachAI', () => {
 
     expect(cockroach.state).toBe('flying');
     expect(cockroach.position).toEqual(start.position);
+  });
+});
+
+describe('Hell flight', () => {
+  const player = { x: 0, y: 1.6, z: 3 };
+
+  function spawn(mode: GameMode, random: () => number) {
+    const ai = new CockroachAI([start], [], random, mode);
+    const cockroach = createCockroach(0);
+    ai.spawn(cockroach);
+    return { ai, cockroach };
+  }
+
+  it.each([[0, 3_000], [0.5, 5_500], [0.999, 7_995]])('waits for the Hell takeoff interval at draw %s', (roll, interval) => {
+    const { ai, cockroach } = spawn('hell', () => roll);
+
+    ai.update(cockroach, interval - 1, player);
+    expect(cockroach.state).toBe('idle');
+    ai.update(cockroach, 1, player);
+    expect(cockroach.state).toBe('preflight');
+  });
+
+  it('keeps Normal cockroaches grounded after the longest Hell interval', () => {
+    const { ai, cockroach } = spawn('normal', () => 0);
+
+    ai.update(cockroach, 10_000, player);
+
+    expect(cockroach.state).toBe('idle');
+    expect(cockroach.flightCurve).toBeNull();
+  });
+
+  it('holds position for 1.5 seconds before snapshotting the current camera target', () => {
+    const { ai, cockroach } = spawn('hell', draws(0, 0, 0, ...Array(20).fill(0.5)));
+    ai.update(cockroach, 3_000, player);
+    ai.update(cockroach, 1_499, player);
+    expect(cockroach.state).toBe('preflight');
+    expect(cockroach.position).toEqual(start.position);
+    expect(cockroach.hitboxRadius).toBe(0.06);
+
+    const currentCamera = { x: 1, y: 1.6, z: 3 };
+    ai.update(cockroach, 1, currentCamera);
+    expect(cockroach.state).toBe('flying');
+    expect(cockroach.flightCurve?.end).toEqual(currentCamera);
+    expect(cockroach.flightCurve?.control).toMatchObject({ x: 0.5, z: 1.5 });
+    expect(cockroach.flightCurve?.control.y).toBeGreaterThan(1.6);
+  });
+
+  it('jitter varies the target and an advancing curve accelerates toward its fixed endpoint', () => {
+    const { ai, cockroach } = spawn('hell', () => 0);
+    ai.update(cockroach, 4_500, player);
+    expect(cockroach.flightCurve).not.toBeNull();
+    const end = cockroach.flightCurve!.end;
+    expect(end.x).toBeLessThan(player.x);
+    expect(end.x).toBeGreaterThan(player.x - 0.3);
+
+    const distanceToCamera = () => Math.hypot(cockroach.position.x, cockroach.position.y, cockroach.position.z);
+    ai.update(cockroach, 300, player);
+    const firstStep = distanceToCamera();
+    ai.update(cockroach, 300, player);
+    expect(distanceToCamera() - firstStep).toBeGreaterThan(firstStep);
+
+    expect(ai.update(cockroach, 2_000, { x: 8, y: 3, z: -3 })).toBe(true);
+    expect(cockroach.flightProgress).toBe(1);
+    expect(cockroach.position).toEqual(end);
   });
 });

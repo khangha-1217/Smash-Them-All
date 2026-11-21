@@ -222,6 +222,24 @@ button, input { font: inherit; }
 .mode-badge { top: var(--gutter); left: var(--gutter); background: var(--sage); }
 .mode-badge[data-mode="hell"] { background: var(--pink); }
 
+.flight-warning {
+  top: max(95px, 23%);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--pink);
+  box-shadow: 3px 4px 0 #30271fe0;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .flight-warning.pop { animation: flight-warning-pop 260ms ease-out both; }
+  @keyframes flight-warning-pop {
+    from { transform: translateX(-50%) scale(.72); }
+    60% { transform: translateX(-50%) scale(1.12); }
+    to { transform: translateX(-50%) scale(1); }
+  }
+}
+
 .scoreboard {
   position: absolute;
   top: var(--gutter);
