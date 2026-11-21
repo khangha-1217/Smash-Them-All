@@ -145,6 +145,32 @@ button, input { font: inherit; }
 .mode-choices input[value="normal"]:checked + span { background: var(--sage); }
 .mode-choices input[value="hell"]:checked + span, .weapon-choices input:checked + span { background: var(--pink); }
 
+.weapon-choices .choice-label { display: inline-flex; align-items: center; gap: 5px; }
+.weapon-icon { position: relative; display: inline-block; width: 1em; height: 1em; flex: none; }
+.weapon-icon::before, .weapon-icon::after { content: ''; position: absolute; }
+.weapon-icon.slipper::before {
+  inset: 0 24%;
+  border: 1px solid #6d3a31;
+  border-radius: 45%;
+  background: linear-gradient(#e7a660 34%, #7d4b42 34% 57%, #e7a660 57%);
+  transform: rotate(32deg);
+}
+.weapon-icon.flyswatter { transform: rotate(29deg); }
+.weapon-icon.flyswatter::before {
+  inset: 0 15% 48%;
+  border: 1px solid #335851;
+  border-radius: 2px;
+  background: repeating-linear-gradient(90deg, #558e7e 0 1px, #baddba 1px 3px);
+}
+.weapon-icon.flyswatter::after { top: 48%; left: 45%; width: 2px; bottom: 0; background: #335851; }
+.weapon-icon.cardboard::before {
+  inset: 10% 8%;
+  border: 1px solid #6f4a32;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #ca9b6f 60%, #ecd3a6 60% 78%, #ca9b6f 78%);
+  transform: rotate(15deg);
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -347,6 +373,9 @@ button, input { font: inherit; }
 }
 
 .pause-card { max-width: 340px; text-align: center; }
+.orientation-overlay { z-index: 1; background: #30271fe6; }
+.orientation-card { max-width: 410px; text-align: center; }
+.orientation-card h2 { margin: 0; }
 .results-card { max-width: 440px; }
 
 .card h2 {
@@ -419,6 +448,90 @@ button, input { font: inherit; }
   .result-summary { min-height: 62px; }
   .rank-stamp { min-height: 45px; min-width: 45px; font-size: 2rem; }
   .results-stats { margin: 7px 0; }
+}
+
+.joystick, .touch-pause { display: none; }
+.touch-hud .control-hints { display: none; }
+#game { touch-action: none; }
+
+.mobile-layout {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+.mobile-layout .hud { inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
+.mobile-layout .modal-overlay {
+  padding: max(12px, var(--safe-top)) max(14px, var(--safe-right))
+    max(12px, var(--safe-bottom)) max(14px, var(--safe-left));
+}
+
+.touch-hud .joystick {
+  position: absolute;
+  bottom: var(--gutter);
+  left: var(--gutter);
+  display: grid;
+  place-items: center;
+  width: clamp(76px, 24vh, 120px);
+  aspect-ratio: 1;
+  border: 2px solid #fff4d9b3;
+  border-radius: 50%;
+  background: #30271f71;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.joystick::after {
+  content: '';
+  width: 42%;
+  aspect-ratio: 1;
+  border: 2px solid #ffefd8a6;
+  border-radius: 50%;
+  background: #fff4d9a6;
+  transform: translate(var(--stick-x, 0px), var(--stick-y, 0px));
+  pointer-events: none;
+}
+
+.touch-hud .touch-pause {
+  position: absolute;
+  top: var(--gutter);
+  right: var(--gutter);
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.touch-hud .kills { bottom: auto; top: calc(var(--gutter) + 36px); }
+.touch-hud .combo { top: calc(var(--gutter) + 53px); }
+
+@media (orientation: landscape) {
+  .mobile-layout .menu-overlay {
+    align-items: end;
+    justify-items: stretch;
+    padding: var(--safe-top) 0 0;
+    background: linear-gradient(0deg, #36291f77, transparent 70%);
+  }
+
+  .mobile-layout .menu-card {
+    max-width: none;
+    border-radius: 17px 17px 0 0;
+    border-bottom: 0;
+    box-shadow: 0 -4px #2a241d45;
+    padding: 10px max(13px, var(--safe-right)) max(9px, var(--safe-bottom)) max(13px, var(--safe-left));
+  }
+
+  .mobile-layout .brand { font-size: clamp(29px, 8vh, 45px); margin: 0 0 9px; }
+  .mobile-layout .brand span { display: inline-block; }
+  .mobile-layout .brand-smash { -webkit-text-stroke-width: 3px; }
+  .mobile-layout .brand-rest { padding-left: .23em; }
+  .mobile-layout .choices { grid-template-columns: 1.05fr .75fr 1fr; gap: 10px; margin-bottom: 8px; }
+  .mobile-layout .selector-options { gap: 4px; }
+  .mobile-layout .choice-label { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 6px; font-size: .82rem; }
+  .mobile-layout .start-button { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

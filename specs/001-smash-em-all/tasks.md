@@ -103,9 +103,9 @@
 - [X] T056 [US3] Add red asset-contract cases for Living Room and Bedroom in `tests/assets/asset-contract.test.ts` using the same map rules as Kitchen. After T048.
 - [X] T057 [P] [US3] Model the cozy living room (sofa, table, shelf, rug and lamps), tag spawns and waypoints, and export `public/assets/models/maps/livingroom.glb`. Save `blender/livingroom.blend` and `blender/scripts/livingroom.py`. After T056.
 - [X] T058 [P] [US3] Model the cozy bedroom (bed, nightstand, desk and wardrobe), tag spawns and waypoints, and export `public/assets/models/maps/bedroom.glb`. Save `blender/bedroom.blend` and `blender/scripts/bedroom.py`. After T056.
-- [ ] T059 [US3] Register the three room URLs in `src/rendering/map-loader.ts` and verify metadata and room/furniture collider extraction for each. After T057, T058.
-- [ ] T060 [US3] Enable three map cards from the start in `src/ui/start-screen.ts` with a selected state and map names. After T055, T059.
-- [ ] T061 [US3] Update `src/main.ts` so map changes update the slow-panning preview with latest-selection wins, dispose unused rooms, and reuse the selected preview scene at round start when ready. After T060.
+- [X] T059 [US3] Register the three room URLs in `src/rendering/map-loader.ts` and verify metadata and room/furniture collider extraction for each. After T057, T058.
+- [X] T060 [US3] Enable three map cards from the start in `src/ui/start-screen.ts` with a selected state and map names. After T055, T059.
+- [X] T061 [US3] Update `src/main.ts` so map changes update the slow-panning preview with latest-selection wins, dispose unused rooms, and reuse the selected preview scene at round start when ready. After T060.
 
 ## Phase 6 — US4 · Choosing Weapons (P2)
 
@@ -116,8 +116,8 @@
 - [X] T062 [US4] Add red contract cases for Flyswatter and Cardboard in `tests/assets/asset-contract.test.ts` using the same budgets and clips as Slipper. After T056.
 - [X] T063 [P] [US4] Model the Flyswatter with distinct `idle` and `swing` clips and export `public/assets/models/weapons/flyswatter.glb`. Save `blender/weapons/flyswatter.blend` and `blender/scripts/flyswatter.py`. After T062.
 - [X] T064 [P] [US4] Model the Cardboard with distinct `idle` and `swing` clips and export `public/assets/models/weapons/cardboard.glb`. Save `blender/weapons/cardboard.blend` and `blender/scripts/cardboard.py`. After T062.
-- [ ] T065 [US4] Preload and select the proper GLB by `weaponId` in `src/rendering/weapon-viewmodel.ts`. Preserve the Core rules shared by all weapons. After T063, T064.
-- [ ] T066 [US4] Display and enable three weapon icons in `src/ui/start-screen.ts` and pass the chosen weapon ID to the existing viewmodel flow. After T060, T065.
+- [X] T065 [US4] Preload and select the proper GLB by `weaponId` in `src/rendering/weapon-viewmodel.ts`. Preserve the Core rules shared by all weapons. After T063, T064.
+- [X] T066 [US4] Display and enable three weapon icons in `src/ui/start-screen.ts` and pass the chosen weapon ID to the existing viewmodel flow. After T060, T065.
 
 ## Phase 7 — US5 · Mobile Touch Controls (P2)
 
@@ -125,12 +125,12 @@
 
 **Independent test** — Run V5 on a phone. Verify joystick, swipe, tap, no start in portrait and automatic resumption after rotation with the same timer, score and spawns. Also verify rotation preserves an existing manual or focus-loss pause.
 
-- [ ] T067 [P] [US5] Implement a left virtual joystick, right-side swipe and outside-joystick tap in `src/input/mobile-input.ts`. Handle simultaneous touch and cancellation, and prevent drags from also triggering swings. After T048.
-- [ ] T068 [P] [US5] Expose portrait status and a blocking, bilingual-ready rotate prompt in `src/ui/orientation-prompt.ts`. After T048.
-- [ ] T069 [US5] Detect actual first input (touch vs mouse/keyboard) in `src/input/input-manager.ts` and activate only the matching handler. First input chooses the controls independently of device orientation. Request mobile fullscreen when supported without blocking gameplay if denied. After T067.
-- [ ] T070 [P] [US5] Adapt safe areas, controls and pause button for touch in `src/ui/hud.ts`. Suppress desktop hints on touch. After T054, T069.
-- [ ] T071 [P] [US5] Use a full-width bottom sheet with touch-sized selectors in `src/ui/start-screen.ts`. After T066, T069.
-- [ ] T072 [US5] In `src/main.ts`, check mobile-device orientation on Start and Play Again and again before `READY → PLAYING`, independently of the active input handler. In mobile portrait, show the rotate prompt and block gameplay, including when rotation occurs during loading. Pause mid-round via the state machine and only auto-resume a rotation-owned pause when visible and landscape. Preserve manual and focus-loss pause. After T061, T069, T068, T070, T071.
+- [X] T067 [P] [US5] Implement a left virtual joystick, right-side swipe and outside-joystick tap in `src/input/mobile-input.ts`. Handle simultaneous touch and cancellation, and prevent drags from also triggering swings. After T048.
+- [X] T068 [P] [US5] Expose portrait status and a blocking, bilingual-ready rotate prompt in `src/ui/orientation-prompt.ts`. After T048.
+- [X] T069 [US5] Detect actual first input (touch vs mouse/keyboard) in `src/input/input-manager.ts` and activate only the matching handler. First input chooses the controls independently of device orientation. Request mobile fullscreen when supported without blocking gameplay if denied. After T067.
+- [X] T070 [P] [US5] Adapt safe areas, controls and pause button for touch in `src/ui/hud.ts`. Suppress desktop hints on touch. After T054, T069.
+- [X] T071 [P] [US5] Use a full-width bottom sheet with touch-sized selectors in `src/ui/start-screen.ts`. After T066, T069.
+- [X] T072 [US5] In `src/main.ts`, check mobile-device orientation on Start and Play Again and again before `READY → PLAYING`, independently of the active input handler. In mobile portrait, show the rotate prompt and block gameplay, including when rotation occurs during loading. Pause mid-round via the state machine and only auto-resume a rotation-owned pause when visible and landscape. Preserve manual and focus-loss pause. After T061, T069, T068, T070, T071.
 
 ## Phase 8 — US6 · Earning Funny Achievements (P3)
 

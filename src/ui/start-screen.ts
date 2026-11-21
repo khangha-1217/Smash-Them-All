@@ -1,9 +1,17 @@
 import type { RoundConfig } from '../core/types';
 import { button, element } from './dom';
 
-const MAPS = [{ id: 'kitchen', label: 'Nhà bếp' }] as const;
+const MAPS = [
+  { id: 'kitchen', label: 'Nhà bếp' },
+  { id: 'livingroom', label: 'Phòng khách' },
+  { id: 'bedroom', label: 'Phòng ngủ' },
+] as const;
 const MODES = [{ id: 'normal', label: 'Thường' }, { id: 'hell', label: 'Địa ngục' }] as const;
-const WEAPONS = [{ id: 'slipper', label: 'Dép' }] as const;
+const WEAPONS = [
+  { id: 'slipper', label: 'Dép' },
+  { id: 'flyswatter', label: 'Vỉ đập' },
+  { id: 'cardboard', label: 'Bìa cứng' },
+] as const;
 
 const DEFAULT_SELECTION: RoundConfig = { mapId: 'kitchen', mode: 'normal', weaponId: 'slipper' };
 
@@ -95,7 +103,14 @@ export class StartScreen {
         this.config[field] = option.id;
         this.onSelect(this.selection);
       });
-      item.append(radio, element('span', 'choice-label', option.label));
+      const caption = element('span', 'choice-label');
+      if (field === 'weaponId') {
+        const icon = element('span', `weapon-icon ${option.id}`);
+        icon.setAttribute('aria-hidden', 'true');
+        caption.append(icon);
+      }
+      caption.append(document.createTextNode(option.label));
+      item.append(radio, caption);
       list.append(item);
     }
     row.append(list);

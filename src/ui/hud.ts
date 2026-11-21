@@ -1,11 +1,12 @@
 import type { GameMode } from '../core/types';
 import type { EventEmitter } from '../utils/event-emitter';
-import { element } from './dom';
+import { button, element } from './dom';
 
 export class Hud {
   readonly root = element('section', 'hud');
   readonly reticle = element('div', 'reticle');
   readonly effects = element('div', 'effects');
+  readonly joystick = element('div', 'joystick');
   private readonly mode = element('div', 'chip mode-badge');
   private readonly timer = element('div', 'timer');
   private readonly score = element('strong', 'score-value');
@@ -14,7 +15,7 @@ export class Hud {
   private readonly flightWarning = element('div', 'chip flight-warning', '⚠️ Nó bay!');
   private readonly preparingToFly = new Set<number>();
 
-  constructor(events: EventEmitter) {
+  constructor(events: EventEmitter, onPause: () => void) {
     const board = element('div', 'scoreboard');
     this.timer.setAttribute('role', 'timer');
     this.timer.setAttribute('aria-label', 'Thời gian còn lại');
@@ -36,7 +37,11 @@ export class Hud {
     this.reticle.setAttribute('aria-hidden', 'true');
     this.flightWarning.setAttribute('role', 'status');
     this.flightWarning.hidden = true;
-    this.root.append(this.mode, board, this.combo, killBadge, controls, this.reticle, this.effects, this.flightWarning);
+    const pauseButton = button('Ⅱ', 'button secondary touch-pause', onPause);
+    pauseButton.setAttribute('aria-label', 'Tạm dừng');
+    this.joystick.setAttribute('aria-hidden', 'true');
+    this.root.append(this.mode, board, this.combo, killBadge, controls, this.reticle, this.effects,
+      this.flightWarning, this.joystick, pauseButton);
     this.root.hidden = true;
 
     events.on('ROUND_STARTED', ({ mode }) => this.reset(mode));

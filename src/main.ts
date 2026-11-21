@@ -11,6 +11,7 @@ import { Vfx } from './rendering/vfx';
 import { WeaponViewmodel } from './rendering/weapon-viewmodel';
 import { GameOverScreen } from './ui/game-over-screen';
 import { Hud } from './ui/hud';
+import { OrientationPrompt } from './ui/orientation-prompt';
 import { PauseOverlay } from './ui/pause-overlay';
 import { StartScreen } from './ui/start-screen';
 import { EventEmitter } from './utils/event-emitter';
@@ -31,7 +32,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   const storage = new ProfileStorage();
   const audio = new AudioManager(events, storage.load().soundEnabled);
   const camera = new CameraController(scene.camera, events);
-  const hud = new Hud(events);
+  const hud = new Hud(events, pauseRound);
   const vfx = new Vfx(scene.world, scene.camera, hud.reticle, hud.effects);
 
   let map: LoadedMap | undefined;
@@ -43,8 +44,9 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   let loadError = '';
   let lastFrame = performance.now();
   let resumeRequested = false;
+  let rotationPaused = false;
 
-  const input = new InputManager(canvas, {
+  const input = new InputManager(canvas, hud.joystick, {
     move: (right, forward, seconds) => camera.move(right, forward, seconds),
     look: (horizontal, vertical) => camera.look(horizontal, vertical),
     swing: () => {
@@ -54,8 +56,8 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     pause: pauseRound,
     lockChanged: locked => {
       if (locked) {
-        if (!focused()) input.desktop.release();
-        else if (round.state === 'PAUSED') round.resume();
+        if (!focused()) input.release();
+        else if (round.state === 'PAUSED' && (resumeRequested || rotationPaused)) resumeWhenAllowed();
         else startWhenReady();
       } else if (round.state === 'PLAYING') {
         pauseRound();
@@ -66,21 +68,29 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
         startWhenReady();
       }
     },
+    modeChanged: mode => {
+      hud.root.classList.toggle('touch-hud', mode === 'touch');
+      ui.classList.toggle('mobile-layout', orientation.mobile || mode === 'touch');
+    },
   });
 
   const start = new StartScreen(begin, ({ mapId }) => preview(mapId));
   const pause = new PauseOverlay(() => {
-    if (round.state !== 'PAUSED' || !focused()) return;
+    if (round.state !== 'PAUSED' || !focused() || orientation.portrait) return;
     resumeRequested = true;
     void audio.activate();
-    input.desktop.acquire();
+    input.acquire();
+    resumeWhenAllowed();
   }, () => round.quit());
   const results = new GameOverScreen(() => {
+    if (orientation.portrait) return;
     if (!round.replay()) return;
     void prepareFromGesture();
   }, () => round.quit());
+  const orientation = new OrientationPrompt(updateOrientation);
 
-  ui.append(start.root, hud.root, pause.root, results.root);
+  ui.append(start.root, hud.root, pause.root, results.root, orientation.root);
+  ui.classList.toggle('mobile-layout', orientation.mobile);
 
   events.on('STATE_CHANGED', ({ to }) => {
     input.setEnabled(to === 'PLAYING');
@@ -89,6 +99,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     pause.root.hidden = to !== 'PAUSED';
     if (to !== 'GAME_OVER') results.hide();
     resumeRequested = false;
+    if (to !== 'PAUSED') rotationPaused = false;
     if (to === 'PLAYING') {
       lastFrame = performance.now();
     } else if (to === 'LOADING') {
@@ -96,15 +107,15 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
       loadError = '';
       start.loading();
     } else if (to === 'PAUSED') {
-      input.desktop.release();
+      if (!rotationPaused) input.release();
       pause.show();
     } else if (to === 'MENU') {
-      input.desktop.release();
+      input.release();
       releaseRoundAssets();
       start.menu(loadError);
       preview(start.selection.mapId);
     } else if (to === 'GAME_OVER') {
-      input.desktop.release();
+      input.release();
     }
   });
 
@@ -122,10 +133,13 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
 
   window.addEventListener('pointerdown', () => void audio.activate(), { once: true });
   window.addEventListener('blur', onFocusLoss);
+  window.addEventListener('focus', updateOrientation);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) onFocusLoss();
+    else updateOrientation();
   });
 
+  updateOrientation();
   preview(start.selection.mapId);
   requestAnimationFrame(frame);
 
@@ -139,20 +153,41 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
 
   function onFocusLoss(): void {
     resumeRequested = false;
-    input.desktop.release();
+    rotationPaused = false;
+    input.release();
     pauseRound();
     if (round.state === 'READY') startWhenReady();
   }
 
+  function updateOrientation(): void {
+    const portrait = orientation.portrait;
+    for (const overlay of [start.root, hud.root, pause.root, results.root]) overlay.inert = portrait;
+    orientation.show(portrait);
+    if (portrait && round.state === 'PLAYING') {
+      rotationPaused = true;
+      round.pause();
+    } else if (!portrait) {
+      if (rotationPaused) resumeWhenAllowed();
+      startWhenReady();
+    }
+  }
+
+  function resumeWhenAllowed(): void {
+    if (round.state === 'PAUSED' && !orientation.portrait && focused() && (input.touch || input.locked)) {
+      round.resume();
+    }
+  }
+
   function startWhenReady(): void {
     if (round.state !== 'READY') return;
-    if (input.desktop.locked && focused()) round.start();
-    else start.ready(!input.desktop.pending, input.desktop.pending);
+    if (!orientation.portrait && focused() && (input.touch || input.locked)) round.start();
+    else start.ready(!input.touch && !input.lockPending, input.lockPending);
   }
 
   function begin(config: RoundConfig): void {
+    if (orientation.portrait) return;
     if (round.state === 'READY') {
-      if (focused()) input.desktop.acquire();
+      if (focused()) input.acquire();
       startWhenReady();
     } else if (round.configure(config)) {
       void prepareFromGesture();
@@ -161,7 +196,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
 
   function prepareFromGesture(): Promise<void> {
     const audioReady = audio.activate();
-    if (focused()) input.desktop.acquire();
+    if (focused()) input.acquire();
     return prepareRound(round.selection!, audioReady);
   }
 
@@ -171,6 +206,8 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
 
   function ensureMap(mapId: MapId): Promise<LoadedMap> {
     if (map?.data.id === mapId) {
+      mapRequest?.abort.abort();
+      mapRequest = undefined;
       reportMapProgress?.(1);
       return Promise.resolve(map);
     }
@@ -180,10 +217,6 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     }
 
     mapRequest?.abort.abort();
-    if (map) {
-      disposeModel(map.scene);
-      map = undefined;
-    }
 
     const abort = new AbortController();
     const loaded = loadMap(mapId, abort.signal, fraction => {
@@ -196,6 +229,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
         throw new DOMException('Map request was replaced', 'AbortError');
       }
 
+      if (map) disposeModel(map.scene);
       map = next;
       scene.world.add(next.scene);
       camera.reset(next.data);
@@ -229,7 +263,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
 
     const [mapResult, weaponResult, roachResult] = await Promise.allSettled([
       ensureMap(config.mapId).catch(cancelSiblings),
-      loadModel(`weapons/${config.weaponId}`, abort.signal, fraction => report(1, fraction)).catch(cancelSiblings),
+      WeaponViewmodel.preload(config.weaponId, abort.signal, fraction => report(1, fraction)).catch(cancelSiblings),
       loadModel('cockroach', abort.signal, fraction => report(2, fraction)).catch(cancelSiblings),
     ] as const);
     let preparedWeapon: WeaponViewmodel | undefined;

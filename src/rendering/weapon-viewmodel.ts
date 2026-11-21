@@ -2,10 +2,21 @@ import { AnimationMixer, Group, LoopOnce, MathUtils } from 'three';
 import type { AnimationAction, PerspectiveCamera, Scene } from 'three';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { SWING_DURATION_MS } from '../core/types';
-import { disposeModel } from './map-loader';
+import type { WeaponId } from '../core/types';
+import { disposeModel, loadModel } from './map-loader';
 import { shadeModel } from './scene-manager';
 
+const WEAPON_MODELS = {
+  slipper: 'weapons/slipper',
+  flyswatter: 'weapons/flyswatter',
+  cardboard: 'weapons/cardboard',
+} satisfies Record<WeaponId, string>;
+
 export class WeaponViewmodel {
+  static preload(weaponId: WeaponId, signal: AbortSignal, progress: (fraction: number) => void): Promise<GLTF> {
+    return loadModel(WEAPON_MODELS[weaponId], signal, progress);
+  }
+
   private readonly mount = new Group();
   private readonly mixer: AnimationMixer;
   private readonly idle: AnimationAction;

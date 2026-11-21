@@ -11,6 +11,11 @@ export interface LoadedMap {
 }
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+const MAP_MODELS = {
+  kitchen: 'maps/kitchen',
+  livingroom: 'maps/livingroom',
+  bedroom: 'maps/bedroom',
+} satisfies Record<MapId, string>;
 
 export async function loadModel(
   path: string,
@@ -79,7 +84,7 @@ export async function loadMap(
   signal: AbortSignal,
   progress?: (fraction: number) => void,
 ): Promise<LoadedMap> {
-  const { scene } = await loadModel(`maps/${mapId}`, signal, progress);
+  const { scene } = await loadModel(MAP_MODELS[mapId], signal, progress);
   const spawnPoints: SurfacePoint[] = [];
   const waypoints: SurfacePoint[] = [];
   const colliders: Aabb[] = [];
