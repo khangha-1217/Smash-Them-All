@@ -138,12 +138,12 @@
 
 **Independent test** — Run V6 with fewer than three kills and with ten near-misses in one round. Check first unlock, no duplicates, trophy hints, refresh persistence and reset by clearing browser data. Verify all other conditions through core tests.
 
-- [ ] T073 [US6] Write red cases in `tests/core/achievement-tracker.test.ts` for all ten conditions in [spec.md](spec.md#achievements), including a near-miss unlock at 10 in one round, no unlock at 9 or at 10 spread across rounds, and the separate condition of 0 misses with ≥15 kills. Test idempotence and persistence via an injected storage double. After T048.
-- [ ] T074 [US6] Implement the ten unique IDs, bilingual names/flavor and condition evaluation in `src/core/achievement-tracker.ts`. Use a persistence interface and emit `ACHIEVEMENT_UNLOCKED` only for new IDs. After T073.
-- [ ] T075 [P] [US6] Build the ten-card trophy grid in `src/ui/trophy-cabinet.ts` with locked hints, colored unlocked cards and profile-backed refresh. After T074.
-- [ ] T076 [P] [US6] Render newly unlocked cards in `src/ui/game-over-screen.ts` using the completed-round result. After T074, T047.
-- [ ] T077 [US6] Add the trophy cabinet entry point in `src/ui/start-screen.ts`. After T075, T071.
-- [ ] T078 [US6] Update `src/main.ts` to increment completed rounds once, add the selected map/weapon IDs to the profile, then evaluate and persist unlocks before showing results. Preserve in-session behavior when storage is unavailable. Run the single-round V6 scenario in [quickstart.md](quickstart.md#v6-achievements-us6--p3) before closing US6. After T072, T052, T066, T076, T077.
+- [X] T073 [US6] Write red cases in `tests/core/achievement-tracker.test.ts` for all ten conditions in [spec.md](spec.md#achievements), including a near-miss unlock at 10 in one round, no unlock at 9 or at 10 spread across rounds, and the separate condition of 0 misses with ≥15 kills. Test idempotence and persistence via an injected storage double. After T048.
+- [X] T074 [US6] Implement the ten unique IDs, bilingual names/flavor and condition evaluation in `src/core/achievement-tracker.ts`. Use a persistence interface and emit `ACHIEVEMENT_UNLOCKED` only for new IDs. After T073.
+- [X] T075 [P] [US6] Build the ten-card trophy grid in `src/ui/trophy-cabinet.ts` with locked hints, colored unlocked cards and profile-backed refresh. After T074.
+- [X] T076 [P] [US6] Render newly unlocked cards in `src/ui/game-over-screen.ts` using the completed-round result. After T074, T047.
+- [X] T077 [US6] Add the trophy cabinet entry point in `src/ui/start-screen.ts`. After T075, T071.
+- [X] T078 [US6] Update `src/main.ts` to increment completed rounds once, add the selected map/weapon IDs to the profile, then evaluate and persist unlocks before showing results. Preserve in-session behavior when storage is unavailable. Run the single-round V6 scenario in [quickstart.md](quickstart.md#v6-achievements-us6--p3) before closing US6. After T072, T052, T066, T076, T077.
 
 ## Phase 9 — US7 · Bilingual Experience (P3)
 
@@ -151,13 +151,13 @@
 
 **Independent test** — Run V7 in both languages. Verify every screen, feedback/rotation alert, badge/hint and dynamic value, and reopen the game to verify persistence.
 
-- [ ] T079 [US7] Write red tests for locale lookup, fallback, interpolation, key parity, switching and persistence in `tests/core/i18n.test.ts` per Constitution §5.1. After T048.
-- [ ] T080 [P] [US7] Create `src/i18n/locales/vi.json` with all menu, HUD, audio-control, alert, trophy, rank and result strings and interpolated values. After T079.
-- [ ] T081 [P] [US7] Create `src/i18n/locales/en.json` covering the same keys and placeholders as Vietnamese. After T079.
-- [ ] T082 [US7] Implement `t()`, synchronous switch, fallback to Vietnamese then key, persistence through the profile adapter and `LANGUAGE_CHANGED` in `src/i18n/i18n.ts`. After T080, T081.
-- [ ] T083 [P] [US7] Replace visible strings and accessible names in `src/ui/start-screen.ts`, `src/ui/hud.ts` and `src/ui/game-over-screen.ts` with locale keys. Add the menu toggle and refresh on `LANGUAGE_CHANGED` without resetting state. After T082, T077, T076, T072.
-- [ ] T084 [P] [US7] Localize and re-render `src/ui/pause-overlay.ts`, `src/ui/trophy-cabinet.ts` and `src/ui/orientation-prompt.ts` on `LANGUAGE_CHANGED`. After T082, T075, T076, T072.
-- [ ] T085 [P] [US7] Localize point/combo overlays in `src/rendering/vfx.ts`. After T082, T041.
+- [X] T079 [US7] Write red tests for locale lookup, fallback, interpolation, key parity, switching and persistence in `tests/core/i18n.test.ts` per Constitution §5.1. After T048.
+- [X] T080 [P] [US7] Create `src/i18n/locales/vi.json` with all menu, HUD, audio-control, alert, trophy, rank and result strings and interpolated values. After T079.
+- [X] T081 [P] [US7] Create `src/i18n/locales/en.json` covering the same keys and placeholders as Vietnamese. After T079.
+- [X] T082 [US7] Implement `t()`, synchronous switch, fallback to Vietnamese then key, persistence through the profile adapter and `LANGUAGE_CHANGED` in `src/i18n/i18n.ts`. After T080, T081.
+- [X] T083 [P] [US7] Replace visible strings and accessible names in `src/ui/start-screen.ts`, `src/ui/hud.ts` and `src/ui/game-over-screen.ts` with locale keys. Add the menu toggle and refresh on `LANGUAGE_CHANGED` without resetting state. After T082, T077, T076, T072.
+- [X] T084 [P] [US7] Localize and re-render `src/ui/pause-overlay.ts`, `src/ui/trophy-cabinet.ts` and `src/ui/orientation-prompt.ts` on `LANGUAGE_CHANGED`. After T082, T075, T076, T072.
+- [X] T085 [P] [US7] Localize point/combo overlays in `src/rendering/vfx.ts`. After T082, T041.
 
 ## Phase 10 — US8 · Sound Control and Audio Feedback (P3)
 

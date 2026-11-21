@@ -5,6 +5,11 @@ export interface StorageBackend {
   setItem(key: string, value: string): void;
 }
 
+export interface ProfilePersistence {
+  load(): PlayerProfile;
+  save(profile: PlayerProfile): void;
+}
+
 const MAP_IDS: Record<MapId, true> = { kitchen: true, livingroom: true, bedroom: true };
 const WEAPON_IDS: Record<WeaponId, true> = { slipper: true, flyswatter: true, cardboard: true };
 const GAME_MODES: Record<GameMode, true> = { normal: true, hell: true };
@@ -100,7 +105,7 @@ function readField<K extends keyof PlayerProfile>(profile: PlayerProfile, storag
   }
 }
 
-export class ProfileStorage {
+export class ProfileStorage implements ProfilePersistence {
   private storage: StorageBackend | undefined;
   private profile: PlayerProfile | undefined;
 

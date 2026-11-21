@@ -15,3 +15,19 @@ export function button(label: string, className: string, action: () => void): HT
   node.addEventListener('click', action);
   return node;
 }
+import type { I18n } from '../i18n/i18n';
+
+
+export function copy<T extends HTMLElement>(node: T, key: string): T {
+  node.dataset.locale = key;
+  return node;
+}
+
+export function translateCopy(root: HTMLElement, i18n: I18n): void {
+  for (const node of root.querySelectorAll<HTMLElement>('[data-locale]')) {
+    node.textContent = i18n.t(node.dataset.locale!);
+  }
+  for (const node of root.querySelectorAll<HTMLElement>('[data-locale-label]')) {
+    node.setAttribute('aria-label', i18n.t(node.dataset.localeLabel!));
+  }
+}

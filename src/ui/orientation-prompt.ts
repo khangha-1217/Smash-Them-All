@@ -1,20 +1,16 @@
-import { element } from './dom';
-
-const COPY = {
-  vi: 'Xoay điện thoại để chơi',
-  en: 'Rotate your device to play',
-};
+import type { I18n } from '../i18n/i18n';
+import { copy, element, translateCopy } from './dom';
 
 export class OrientationPrompt {
   readonly root = element('section', 'modal-overlay orientation-overlay');
-  private readonly title = element('h2', '', COPY.vi);
+  private readonly title = copy(element('h2'), 'orientation.title');
   private readonly portraitViewport = window.matchMedia('(orientation: portrait)');
   readonly mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
     || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     || (navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches
       && Math.min(screen.width, screen.height) <= 600);
 
-  constructor(onChange: () => void) {
+  constructor(private readonly i18n: I18n, onChange: () => void) {
     const card = element('div', 'card orientation-card');
     this.title.id = 'orientation-title';
     card.append(this.title);
@@ -26,6 +22,7 @@ export class OrientationPrompt {
     this.root.tabIndex = -1;
     this.portraitViewport.addEventListener('change', onChange);
     window.addEventListener('resize', onChange);
+    this.localize();
   }
 
   get portrait(): boolean {
@@ -38,7 +35,7 @@ export class OrientationPrompt {
     if (portrait) this.root.focus({ preventScroll: true });
   }
 
-  setLanguage(language: keyof typeof COPY): void {
-    this.title.textContent = COPY[language];
+  localize(): void {
+    translateCopy(this.root, this.i18n);
   }
 }

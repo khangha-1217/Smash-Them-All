@@ -1,6 +1,8 @@
+import { AchievementTracker } from './core/achievement-tracker';
 import { RoundController } from './core/round';
 import type { MapId, RoundConfig } from './core/types';
 import { AudioManager } from './audio/audio-manager';
+import { I18n } from './i18n/i18n';
 import { InputManager } from './input/input-manager';
 import { CameraController } from './rendering/camera-controller';
 import { CockroachRenderer } from './rendering/cockroach-renderer';
@@ -14,6 +16,7 @@ import { Hud } from './ui/hud';
 import { OrientationPrompt } from './ui/orientation-prompt';
 import { PauseOverlay } from './ui/pause-overlay';
 import { StartScreen } from './ui/start-screen';
+import { TrophyCabinet } from './ui/trophy-cabinet';
 import { EventEmitter } from './utils/event-emitter';
 import { ProfileStorage } from './utils/storage';
 import './ui/styles.css';
@@ -30,10 +33,12 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   const events = new EventEmitter();
   const round = new RoundController(events);
   const storage = new ProfileStorage();
+  const achievements = new AchievementTracker(storage, events);
+  const i18n = new I18n(storage, events);
   const audio = new AudioManager(events, storage.load().soundEnabled);
   const camera = new CameraController(scene.camera, events);
-  const hud = new Hud(events, pauseRound);
-  const vfx = new Vfx(scene.world, scene.camera, hud.reticle, hud.effects);
+  const hud = new Hud(i18n, events, pauseRound);
+  const vfx = new Vfx(scene.world, scene.camera, hud.reticle, hud.effects, i18n);
 
   let map: LoadedMap | undefined;
   let mapRequest: MapRequest | undefined;
@@ -41,10 +46,11 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   let reportMapProgress: ((fraction: number) => void) | undefined;
   let weapon: WeaponViewmodel | undefined;
   let roaches: CockroachRenderer | undefined;
-  let loadError = '';
+  let loadFailed = false;
   let lastFrame = performance.now();
   let resumeRequested = false;
   let rotationPaused = false;
+  let trophyOpen = false;
 
   const input = new InputManager(canvas, hud.joystick, {
     move: (right, forward, seconds) => camera.move(right, forward, seconds),
@@ -74,37 +80,55 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     },
   });
 
-  const start = new StartScreen(begin, ({ mapId }) => preview(mapId));
-  const pause = new PauseOverlay(() => {
+  const start = new StartScreen(i18n, begin, ({ mapId }) => preview(mapId), () => {
+    if (round.state !== 'MENU' || orientation.portrait) return;
+    trophyOpen = true;
+    refreshOverlayVisibility();
+    trophies.show();
+  });
+  const pause = new PauseOverlay(i18n, () => {
     if (round.state !== 'PAUSED' || !focused() || orientation.portrait) return;
     resumeRequested = true;
     void audio.activate();
     input.acquire();
     resumeWhenAllowed();
+  }, () => {
+    const selection = round.selection;
+    if (round.state !== 'PAUSED' || !selection || orientation.portrait) return;
+    if (round.quit()) begin(selection);
   }, () => round.quit());
-  const results = new GameOverScreen(() => {
+  const results = new GameOverScreen(i18n, () => {
     if (orientation.portrait) return;
     if (!round.replay()) return;
     void prepareFromGesture();
   }, () => round.quit());
-  const orientation = new OrientationPrompt(updateOrientation);
+  const trophies = new TrophyCabinet(i18n, storage, () => {
+    trophyOpen = false;
+    refreshOverlayVisibility();
+    start.focusTrophies();
+  });
+  const orientation = new OrientationPrompt(i18n, updateOrientation);
 
-  ui.append(start.root, hud.root, pause.root, results.root, orientation.root);
+  ui.append(start.root, hud.root, pause.root, results.root, trophies.root, orientation.root);
   ui.classList.toggle('mobile-layout', orientation.mobile);
+  localizeDocument();
+  events.on('LANGUAGE_CHANGED', () => {
+    localizeDocument();
+    for (const component of [start, hud, pause, results, trophies, orientation, vfx]) component.localize();
+  });
 
   events.on('STATE_CHANGED', ({ to }) => {
     input.setEnabled(to === 'PLAYING');
-    start.root.hidden = to !== 'MENU' && to !== 'LOADING' && to !== 'READY';
-    hud.root.hidden = to !== 'PLAYING';
-    pause.root.hidden = to !== 'PAUSED';
     if (to !== 'GAME_OVER') results.hide();
+    if (to !== 'MENU') trophyOpen = false;
+    refreshOverlayVisibility();
     resumeRequested = false;
     if (to !== 'PAUSED') rotationPaused = false;
     if (to === 'PLAYING') {
       lastFrame = performance.now();
     } else if (to === 'LOADING') {
       releaseRoundAssets();
-      loadError = '';
+      loadFailed = false;
       start.loading();
     } else if (to === 'PAUSED') {
       if (!rotationPaused) input.release();
@@ -112,7 +136,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     } else if (to === 'MENU') {
       input.release();
       releaseRoundAssets();
-      start.menu(loadError);
+      start.menu(loadFailed);
       preview(start.selection.mapId);
     } else if (to === 'GAME_OVER') {
       input.release();
@@ -128,7 +152,9 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   events.on('ROUND_ENDED', ({ roundResult }) => {
     const { mapId, mode, score } = roundResult;
     const previous = storage.recordPersonalBest(mapId, mode, score);
-    results.show(roundResult, previous);
+    const newlyUnlocked = achievements.completeRound(roundResult);
+    results.show(roundResult, previous, newlyUnlocked);
+    refreshOverlayVisibility();
   });
 
   window.addEventListener('pointerdown', () => void audio.activate(), { once: true });
@@ -142,6 +168,11 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   updateOrientation();
   preview(start.selection.mapId);
   requestAnimationFrame(frame);
+
+  function localizeDocument(): void {
+    document.documentElement.lang = i18n.language;
+    document.title = i18n.t('brand.title');
+  }
 
   function focused(): boolean {
     return !document.hidden && document.hasFocus();
@@ -159,9 +190,19 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     if (round.state === 'READY') startWhenReady();
   }
 
+  function refreshOverlayVisibility(): void {
+    const portrait = orientation.portrait;
+    const { state } = round;
+    start.root.hidden = portrait || trophyOpen || (state !== 'MENU' && state !== 'LOADING' && state !== 'READY');
+    trophies.root.hidden = portrait || !trophyOpen;
+    hud.root.hidden = portrait || state !== 'PLAYING';
+    pause.root.hidden = portrait || state !== 'PAUSED';
+    results.root.hidden = portrait || state !== 'GAME_OVER';
+  }
+
   function updateOrientation(): void {
     const portrait = orientation.portrait;
-    for (const overlay of [start.root, hud.root, pause.root, results.root]) overlay.inert = portrait;
+    refreshOverlayVisibility();
     orientation.show(portrait);
     if (portrait && round.state === 'PLAYING') {
       rotationPaused = true;
@@ -293,7 +334,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
         disposeModel(map.scene);
         map = undefined;
       }
-      loadError = 'Không tải được màn chơi. Hãy thử lại.';
+      loadFailed = true;
       round.failLoad();
     } finally {
       if (preparedWeapon !== weapon || !preparedWeapon) {

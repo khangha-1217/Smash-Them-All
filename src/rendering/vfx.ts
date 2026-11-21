@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, Points, ShaderMaterial, Vector3 } from 'three';
 import type { PerspectiveCamera, Scene } from 'three';
+import type { I18n } from '../i18n/i18n';
 import type { GameEvents } from '../utils/event-emitter';
 
 interface SplatParticle {
@@ -13,6 +14,8 @@ interface Popup {
   node: HTMLElement;
   position: Vector3;
   age: number;
+  points: number;
+  comboMultiplier: number;
 }
 
 const SPLAT_SECONDS = 0.4;
@@ -35,6 +38,7 @@ export class Vfx {
     private readonly camera: PerspectiveCamera,
     private readonly reticle: HTMLElement,
     private readonly overlay: HTMLElement,
+    private readonly i18n: I18n,
   ) {
     this.geometry.setAttribute('position', this.positions);
     this.geometry.setAttribute('opacity', this.opacities);
@@ -84,15 +88,26 @@ export class Vfx {
 
     const node = document.createElement('div');
     node.className = 'point-popup';
-    node.textContent = comboMultiplier > 1 ? `+${points} ×${comboMultiplier}!` : `+${points}`;
     this.overlay.append(node);
-    const popup = { node, position: new Vector3().copy(position), age: 0 };
+    const popup = { node, position: new Vector3().copy(position), age: 0, points, comboMultiplier };
     this.popups.push(popup);
+    this.localizePopup(popup);
     this.placePopup(popup);
   }
 
   nearMiss(): void {
     this.flash('near-miss');
+  }
+
+  localize(): void {
+    for (const popup of this.popups) this.localizePopup(popup);
+  }
+
+  private localizePopup({ node, points, comboMultiplier }: Popup): void {
+    node.textContent = this.i18n.t(comboMultiplier > 1 ? 'vfx.combo' : 'vfx.points', {
+      points: this.i18n.number(points),
+      multiplier: comboMultiplier,
+    });
   }
 
   reset(): void {
