@@ -112,16 +112,27 @@ export class ProfileStorage {
 
   save(profile: PlayerProfile): void {
     this.loadSession();
-    this.profile = copyProfile(profile);
-    const storage = this.storage;
-    if (!storage) return;
+    const snapshot = copyProfile(profile);
+    this.profile = snapshot;
+    for (const field of PROFILE_FIELDS) this.writeField(snapshot, field);
+  }
 
-    for (const field of PROFILE_FIELDS) {
-      try {
-        storage.setItem(FIELDS[field].key, JSON.stringify(this.profile[field]));
-      } catch {
-        // The session copy remains available if writing this field fails.
-      }
+  recordPersonalBest(mapId: MapId, mode: GameMode, score: number): number | undefined {
+    const profile = this.loadSession();
+    const key = `${mapId}_${mode}`;
+    const previous = profile.personalBests[key];
+    if (isNonnegativeInteger(score) && (previous === undefined || score > previous)) {
+      profile.personalBests[key] = score;
+      this.writeField(profile, 'personalBests');
+    }
+    return previous;
+  }
+
+  private writeField(profile: PlayerProfile, field: keyof PlayerProfile): void {
+    try {
+      this.storage?.setItem(FIELDS[field].key, JSON.stringify(profile[field]));
+    } catch {
+      // The session copy remains available if writing this field fails.
     }
   }
 
