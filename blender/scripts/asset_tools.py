@@ -175,14 +175,14 @@ def add_track(target, name, keyframes):
     return track
 
 
-def set_view(eye, focus, distance, markers=False):
+def set_view(eye, focus, distance, markers=False, clip_start=0.0003):
     rotation = (Vector(focus) - Vector(eye)).to_track_quat("-Z", "Y")
     for screen in bpy.data.screens:
         for area in screen.areas:
             if area.type != "VIEW_3D":
                 continue
             space = area.spaces.active
-            space.clip_start = 0.0003
+            space.clip_start = clip_start
             space.lens = 36
             space.shading.type = "SOLID"
             space.shading.light = "FLAT"

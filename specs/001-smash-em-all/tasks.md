@@ -100,9 +100,9 @@
 
 **Independent test** — Run V3 in all three maps. Check distinct furniture and spawn positions, smooth collision, correct preview on map switches and a single selected map on a clean load.
 
-- [ ] T056 [US3] Add red asset-contract cases for Living Room and Bedroom in `tests/assets/asset-contract.test.ts` using the same map rules as Kitchen. After T048.
-- [ ] T057 [P] [US3] Model the cozy living room (sofa, table, shelf, rug and lamps), tag spawns and waypoints, and export `public/assets/models/maps/livingroom.glb`. Save `blender/livingroom.blend` and `blender/scripts/livingroom.py`. After T056.
-- [ ] T058 [P] [US3] Model the cozy bedroom (bed, nightstand, desk and wardrobe), tag spawns and waypoints, and export `public/assets/models/maps/bedroom.glb`. Save `blender/bedroom.blend` and `blender/scripts/bedroom.py`. After T056.
+- [X] T056 [US3] Add red asset-contract cases for Living Room and Bedroom in `tests/assets/asset-contract.test.ts` using the same map rules as Kitchen. After T048.
+- [X] T057 [P] [US3] Model the cozy living room (sofa, table, shelf, rug and lamps), tag spawns and waypoints, and export `public/assets/models/maps/livingroom.glb`. Save `blender/livingroom.blend` and `blender/scripts/livingroom.py`. After T056.
+- [X] T058 [P] [US3] Model the cozy bedroom (bed, nightstand, desk and wardrobe), tag spawns and waypoints, and export `public/assets/models/maps/bedroom.glb`. Save `blender/bedroom.blend` and `blender/scripts/bedroom.py`. After T056.
 - [ ] T059 [US3] Register the three room URLs in `src/rendering/map-loader.ts` and verify metadata and room/furniture collider extraction for each. After T057, T058.
 - [ ] T060 [US3] Enable three map cards from the start in `src/ui/start-screen.ts` with a selected state and map names. After T055, T059.
 - [ ] T061 [US3] Update `src/main.ts` so map changes update the slow-panning preview with latest-selection wins, dispose unused rooms, and reuse the selected preview scene at round start when ready. After T060.
@@ -113,9 +113,9 @@
 
 **Independent test** — Run V4 with all weapons. Compare bottom-right appearance, bob and swings, then verify equivalent range, cone, lockout and scoring.
 
-- [ ] T062 [US4] Add red contract cases for Flyswatter and Cardboard in `tests/assets/asset-contract.test.ts` using the same budgets and clips as Slipper. After T056.
-- [ ] T063 [P] [US4] Model the Flyswatter with distinct `idle` and `swing` clips and export `public/assets/models/weapons/flyswatter.glb`. Save `blender/weapons/flyswatter.blend` and `blender/scripts/flyswatter.py`. After T062.
-- [ ] T064 [P] [US4] Model the Cardboard with distinct `idle` and `swing` clips and export `public/assets/models/weapons/cardboard.glb`. Save `blender/weapons/cardboard.blend` and `blender/scripts/cardboard.py`. After T062.
+- [X] T062 [US4] Add red contract cases for Flyswatter and Cardboard in `tests/assets/asset-contract.test.ts` using the same budgets and clips as Slipper. After T056.
+- [X] T063 [P] [US4] Model the Flyswatter with distinct `idle` and `swing` clips and export `public/assets/models/weapons/flyswatter.glb`. Save `blender/weapons/flyswatter.blend` and `blender/scripts/flyswatter.py`. After T062.
+- [X] T064 [P] [US4] Model the Cardboard with distinct `idle` and `swing` clips and export `public/assets/models/weapons/cardboard.glb`. Save `blender/weapons/cardboard.blend` and `blender/scripts/cardboard.py`. After T062.
 - [ ] T065 [US4] Preload and select the proper GLB by `weaponId` in `src/rendering/weapon-viewmodel.ts`. Preserve the Core rules shared by all weapons. After T063, T064.
 - [ ] T066 [US4] Display and enable three weapon icons in `src/ui/start-screen.ts` and pass the chosen weapon ID to the existing viewmodel flow. After T060, T065.
 

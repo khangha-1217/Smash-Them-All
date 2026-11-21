@@ -15,8 +15,12 @@ interface GlbDocument {
 
 const models = [
   { path: 'maps/kitchen.glb', maxBytes: 2_000_000, maxTriangles: 30_000, clips: [], surfaces: ['floor', 'counter', 'sink', 'wall'] },
+  { path: 'maps/livingroom.glb', maxBytes: 2_000_000, maxTriangles: 30_000, clips: [], surfaces: ['floor', 'table', 'shelf', 'wall'] },
+  { path: 'maps/bedroom.glb', maxBytes: 2_000_000, maxTriangles: 30_000, clips: [], surfaces: ['floor', 'bed', 'desk', 'wall'] },
   { path: 'cockroach.glb', maxBytes: 100_000, maxTriangles: 1_500, clips: ['idle', 'crawl', 'fly'] },
   { path: 'weapons/slipper.glb', maxBytes: 50_000, maxTriangles: 800, clips: ['idle', 'swing'] },
+  { path: 'weapons/flyswatter.glb', maxBytes: 50_000, maxTriangles: 800, clips: ['idle', 'swing'] },
+  { path: 'weapons/cardboard.glb', maxBytes: 50_000, maxTriangles: 800, clips: ['idle', 'swing'] },
 ];
 const surfaceTags = ['floor', 'counter', 'table', 'wall', 'ceiling', 'shelf', 'bed', 'desk', 'sink', 'chair'];
 const meshopt = 'EXT_meshopt_compression';
