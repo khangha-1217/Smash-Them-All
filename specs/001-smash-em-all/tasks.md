@@ -14,11 +14,11 @@
 
 **Goal** — Establish the browser entry point and the development, production build and selective test commands.
 
-- [ ] T001 [P] Initialize Node 18+ and pnpm in `package.json` with ESM, Three.js r170+, matching `@types/three` typings, TypeScript 5.x, Vite 5.x, Vitest and its coverage provider. Add dev, build and test scripts and generate `pnpm-lock.yaml`.
-- [ ] T002 [P] Configure strict TypeScript, ES modules and bundler resolution in `tsconfig.json`.
-- [ ] T003 Configure Vite and Vitest in `vite.config.ts` for the single browser entry and Node-based core/asset suites. Enable branch reporting for the covered core modules. After T001.
-- [ ] T004 [P] Create `index.html` with `#game` canvas, `#ui` overlay and hidden `#ad-slot-top` / `#ad-slot-bottom` containers above the canvas.
-- [ ] T005 Create the bootstrap in `src/main.ts` and reference it as the Vite module entry in `index.html`. Verify `pnpm dev` serves the shell and `pnpm build` succeeds. After T004, T002, T003.
+- [X] T001 [P] Initialize Node 18+ and pnpm in `package.json` with ESM, Three.js r170+, matching `@types/three` typings, TypeScript 5.x, Vite 5.x, Vitest and its coverage provider. Add dev, build and test scripts and generate `pnpm-lock.yaml`.
+- [X] T002 [P] Configure strict TypeScript, ES modules and bundler resolution in `tsconfig.json`.
+- [X] T003 Configure Vite and Vitest in `vite.config.ts` for the single browser entry and Node-based core/asset suites. Enable branch reporting for the covered core modules. After T001.
+- [X] T004 [P] Create `index.html` with `#game` canvas, `#ui` overlay and hidden `#ad-slot-top` / `#ad-slot-bottom` containers above the canvas.
+- [X] T005 Create the bootstrap in `src/main.ts` and reference it as the Vite module entry in `index.html`. Verify `pnpm dev` serves the shell and `pnpm build` succeeds. After T004, T002, T003.
 
 ## Phase 2 — Foundational contracts
 

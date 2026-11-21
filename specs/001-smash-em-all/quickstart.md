@@ -130,10 +130,10 @@ pnpm dev
 pnpm test
 
 # Run asset contract validation
-pnpm test -- tests/assets/asset-contract.test.ts
+pnpm test tests/assets/asset-contract.test.ts
 
 # Run all tests with coverage
-pnpm test -- --coverage
+pnpm test --coverage
 # Expected: 100% branch coverage for src/core/ modules
 ```
 

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smash 'Em All</title>
+    <style>
+      body {
+        margin: 0;
+      }
+
+      #game {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+      }
+
+      #ui {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ad-slot-top" hidden></div>
+    <div id="ad-slot-bottom" hidden></div>
+    <canvas id="game"></canvas>
+    <div id="ui"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
