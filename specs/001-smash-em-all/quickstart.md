@@ -1,72 +1,86 @@
-# Quickstart Validation Guide: Smash 'Em All
-
-**Purpose**: Runnable validation scenarios that prove the game works end-to-end after implementation.
+# Smash 'Em All quickstart and validation
 
 ## Prerequisites
 
-- Node.js 18+ installed
-- pnpm (or npm) package manager
-- Modern browser (Chrome 90+ recommended for DevTools debugging)
-- For asset contract tests: GLB files present in `public/assets/models/`
+- Node.js 18.12+ and the repository's pinned pnpm 10.33.0, or npm.
+- A browser with WebGL 2. For release checks use Chrome, Firefox, Safari and Edge on desktop, and Safari on iOS and Chrome on Android.
+- The committed GLB files in `public/assets/models/` for the asset contract suite.
 
 ## Setup
 
 ```bash
-# Clone and install
-cd smash-em-all
 pnpm install
 
-# Start dev server
-pnpm dev
-# → Opens at http://localhost:5173
+# Development at http://localhost:5173
+pnpm dev --strictPort
+
+# Production preview at http://localhost:4173
+pnpm build
+pnpm exec vite preview --strictPort
 ```
+
+Run the commands from the repository root. If using npm instead, use `npm install --no-package-lock`, `npm run dev -- --strictPort`, `npm run build` and `npm exec -- vite preview --strictPort`.
+Use the dev server for the optional event probes and the production preview for the release build checks.
 
 ## Validation Scenarios
 
-### V1: Core Game Loop (US1 — P1)
+### V1 Core game loop (US1, P1)
+
+For the US1 checkpoint at T048, run Kitchen, Normal and Slipper with desktop controls. Check the preview, load progress, swing audio, pause/resume and replay. Room, mode and weapon selectors, the trophy cabinet, the language and sound controls, and results confetti can be absent until their respective increments land. At release, exercise the available selectors and verify the end-of-round effects.
 
 **Steps:**
 1. Open `http://localhost:5173` in Chrome
 2. Verify start screen loads with 3D kitchen scene in background
 3. Select Kitchen map, Normal mode, Slipper weapon
 4. Click "BẮT ĐẦU" / "START"
-5. Verify 90-second countdown begins at top-center
+5. Verify the load progress, pointer lock on desktop and 90-second countdown at top-center
 6. Use WASD to move around the kitchen
 7. Click to swing slipper at a cockroach
 8. Verify the cockroach is eliminated, the splat appears, the score increases, and exactly one smack plays
 9. Hit 3 cockroaches within 2s each — verify combo badge shows x2, x3
 10. Wait > 2s — verify combo resets
 11. Swing close enough to get a near-miss. Verify the crosshair reacts, combo resets and exactly one whoosh plays. Swing at empty space and verify it also counts as a miss and plays exactly one whoosh.
-12. Wait for timer to reach 0:00
-13. Verify game over screen shows: score, rank (S/A/B/C), kills, max combo, accuracy
-14. Click "CHƠI LẠI" / "PLAY AGAIN" — verify new round starts
+12. Press Escape and switch away from the tab in separate checks. Verify the clock, score and spawns freeze while paused. Return and select Resume to continue.
+13. Wait for the 90-second active-play clock to expire. Verify the results show score, rank (S/A/B/C), kills, best combo and accuracy. At release, confirm the results transition and confetti play once, and repeat with reduced motion enabled to verify the results appear immediately.
+14. Click "CHƠI LẠI" / "PLAY AGAIN". Verify a fresh 90-second round starts with the same room, mode and weapon, and the score, combo and effects reset.
 
 **Expected:** Complete round plays through with all systems functional.
 
-### V2: Hell Mode Flying Cockroaches (US2 — P1)
+### V2 Hell mode flying cockroaches (US2, P1)
 
 **Steps:**
 1. From start screen, select Hell Mode
 2. Start a round
-3. Wait for the warning toast "⚠️ Nó bay!" after a cockroach's 3–8s preflight trigger interval
-4. Verify the warning precedes takeoff by 1.5 seconds, then look up to see the cockroach flying toward you
-5. Swing to hit the flying cockroach — verify 250 base points (vs 100 for crawling)
+3. For a newly spawned cockroach, measure from spawn to the preflight warning ("⚠️ Nó bay!" / "⚠️ It's flying!"). The game draws a random trigger delay of 3–8 seconds from that cockroach's spawn.
+4. Measure from that same cockroach's preflight warning to takeoff. Expect 1.5 additional seconds of active play, within one rendered frame when uninterrupted. Follow the cockroach toward you. A second cockroach can start warning before the first takes off and keep the shared toast visible.
+5. Hit a flying cockroach at ×1 to verify 250 points. Hit a crawling cockroach at ×1 to verify 100 points.
 6. Let a flying cockroach reach you — verify it despawns (no damage, no health loss)
-7. Complete the round — verify rank thresholds are higher than Normal mode
+7. Complete the round. Compare the S/A/B thresholds of 12,000/8,000/5,000 in Hell with 8,000/5,000/3,000 in Normal.
 
-**Expected:** Flying cockroaches spawn, warn, fly, and can be hit or dodge.
+For timing in the dev build, run this in the console before starting the round. Match the timestamps by `cockroachId` and use its latest spawn if an ID is reused. Keep the tab focused and repeat without swinging at the measured cockroach.
 
-### V3: All Maps (US3 — P2)
+```js
+const { game } = await import(document.querySelector('script[src*="/src/main.ts"]').src);
+const stopFlightProbe = ['COCKROACH_SPAWNED', 'COCKROACH_PREFLIGHT', 'COCKROACH_FLYING']
+  .map(event => game.events.on(event, ({ cockroachId }) => {
+    console.log(event, cockroachId, performance.now());
+  }));
+// After the check: stopFlightProbe.forEach(unsubscribe => unsubscribe());
+```
+
+**Expected** Both intervals fall in their specified ranges, the warning appears on preflight, and a flying cockroach can be hit or safely allowed to reach its target.
+
+### V3 All rooms (US3, P2)
 
 **Steps:**
 1. Play one round in Kitchen — note furniture, spawn locations
 2. Play one round in Living Room — verify different environment and spawns
 3. Play one round in Bedroom — verify different environment and spawns
-4. In each map, walk to walls/furniture — verify collision (can't walk through)
+4. In each room, verify the menu previews the current selection and the game loads that room. Walk into walls and furniture to check collision.
 
 **Expected:** Three visually distinct maps, each with working spawns and colliders.
 
-### V4: Weapon Variety (US4 — P2)
+### V4 Weapon variety (US4, P2)
 
 **Steps:**
 1. Play with Slipper — note visual appearance and swing animation
@@ -75,67 +89,79 @@ pnpm dev
 
 **Expected:** Three visually distinct weapons, identical gameplay performance.
 
-### V5: Mobile Controls (US5 — P2)
+### V5 Mobile controls (US5, P2)
 
 **Steps:**
-1. Open game on a mobile phone in landscape orientation
+1. Open the game on a mobile phone in landscape and tap Start.
 2. Verify virtual joystick appears on the lower-left
 3. Drag joystick — verify movement
 4. Swipe right side — verify camera rotation
 5. Tap — verify weapon swing
 6. Rotate phone to portrait — verify "Rotate your device" prompt appears
 7. Rotate back to landscape and verify the round resumes with the same timer, score and spawns.
-8. Open the game in portrait and make Start the first interaction. Verify the rotate prompt appears and gameplay stays blocked. Repeat with an external mouse or keyboard on the phone.
+8. Open the game in portrait. Verify the rotate prompt appears immediately and blocks access to Start. Try tapping, then repeat with an external mouse or keyboard on the phone. Return to landscape and verify Start is accessible.
 9. Start in landscape, then rotate to portrait while the round is loading. Verify gameplay stays blocked until landscape returns. Repeat the orientation check on Play Again.
 10. Pause manually in landscape, rotate to portrait, then return to landscape. Verify the game stays paused until the player resumes.
 
 **Expected:** Touch controls work in landscape and the portrait restriction applies consistently across input methods.
 
-### V6: Achievements (US6 — P3)
+### V6 Achievements (US6, P3)
 
 **Steps:**
-1. Play a round with < 3 kills — verify "Thong thả" / "Taking It Easy" unlocks
-2. Open trophy cabinet — verify achievement displayed, others greyed
-3. Close and reopen browser — verify achievement persists
-4. With "Bậc thầy vẽ viền" still locked, register exactly 10 near-misses in one round and let the timer expire. Verify the badge appears in the results.
-5. Repeat the condition in another round. Verify the results show no new unlock for that badge and the trophy cabinet still contains a single entry for it.
+1. Use a fresh profile. Finish a normal round with fewer than three kills and verify "Thong thả" / "Taking It Easy" unlocks on the results screen.
+2. Return to the menu and open the trophy cabinet. Verify the badge is unlocked and unearned badges show their locked status and hints.
+3. Close and reopen the browser on the same origin. Verify the achievement persists.
+4. With "Bậc thầy vẽ viền" / "Outline Artist" locked, register ten near-misses in one round and let the timer expire. Verify the badge appears in the results. In the dev build, `game.round.stats.nearMisses` can confirm the count after importing `game` as in V2.
+5. Repeat the condition in another round. Verify there is no new results unlock for that badge and the cabinet contains a single entry for it.
+
+A dev-only fixture can place a cockroach just outside the hit cone but inside the near-miss radius, then let real swings produce exactly ten near-miss events. Record such a run as fixture-assisted for the condition, results, persistence and duplicate checks. Use uninterrupted natural play and the full round timer for the SC-007 reachability check.
 
 **Expected:** Achievements unlock, persist, and don't duplicate.
 
-### V7: Language Toggle (US7 — P3)
+### V7 Language toggle (US7, P3)
 
 **Steps:**
-1. On start screen, tap language toggle (🇻🇳 → 🇬🇧)
-2. Verify ALL text changes to English (button labels, mode names, achievement names)
-3. Play a round — verify HUD text, game over text all in English
+1. From the default Vietnamese menu, select the "English" button.
+2. Verify menu, settings, achievements, locked hints and labels switch to English. Verify the current selections stay selected and the document language is `en`.
+3. Play a round and verify HUD, pause, results and in-game warnings are in English.
 4. Close and reopen — verify English persists
 5. Toggle back to Vietnamese — verify all text reverts
 
 **Expected:** Instant language switch, 100% coverage, persistent.
 
-### V8: Sound Control (US8 — P3)
+### V8 Sound control (US8, P3)
 
 **Steps:**
-1. Play with sound on. Verify one smack on a hit, one whoosh on a near-miss and one whoosh on an empty miss. Also verify spatial scurry/buzz and mode music.
-2. Toggle sound off and repeat all three swing outcomes. Verify the visual feedback still plays and all game audio is silent.
-3. Close and reopen — verify remains muted
-4. Toggle on — verify all sounds resume
+1. Start with sound on. In both modes verify one smack on a hit, one whoosh on a near-miss and one whoosh on an empty miss. Move or turn near cockroaches to check scurry direction and distance, including the Hell-mode flight buzz. Listen for the mode music, combo cues at ×5 and ×10, last-ten-seconds tick and round-end cue.
+2. During a round, press M on desktop or tap the HUD sound control on touch. Repeat all three swing outcomes. Verify the visual feedback still plays and all game audio is silent.
+3. Close and reopen the same origin, then start another round. Verify the menu and HUD still show sound off and the round is silent.
+4. Use the menu or HUD control or press M again during a round. Verify the music and sound cues are audible when their events occur.
 
 **Expected:** Sound toggle works immediately, persists.
 
 ## Automated Tests
 
 ```bash
-# Run headless core unit tests (TDD)
-pnpm test
+# Run headless core unit tests
+pnpm test tests/core
 
 # Run asset contract validation
 pnpm test tests/assets/asset-contract.test.ts
 
-# Run all tests with coverage
+# Run both suites with coverage
 pnpm test --coverage
 # Expected: 100% branch coverage for src/core/ modules
 ```
+
+With npm use `npm test -- tests/core`, `npm test -- tests/assets/asset-contract.test.ts` and `npm test -- --coverage`.
+
+## Release edge cases
+
+- Deny access to browser storage before opening the game. Confirm a round can start, finish and replay, and sound and language can be changed without an error. Restore storage and use a new page for persistence checks.
+- With visible-tab CPU throttling or a deliberate slow frame, time an uninterrupted round. Verify elapsed active play counts toward the 90 seconds and the game reaches results once. Separately verify tab blur pauses the clock.
+- Complete a round and return to the menu. Change room, mode and weapon, then start. Replay from those results and verify it retains the new selections with reset score, spawns and timer.
+- Tab through radio groups and menu actions and use the arrow keys to change radio selections. From Pause, Game Over and the trophy cabinet verify keyboard focus remains within the active dialog and its actions work. Confirm the menu and dialogs scroll to all their actions in short landscape.
+- The ad slots start hidden. In DevTools, temporarily remove their `hidden` attributes and insert inert text or blocks. Verify the slots reserve space at the upper and lower edges during the menu and results breaks, leave the canvas dimensions intact and allow all controls to be reached. Check that oversized content is clipped and the slots stay hidden during gameplay, pause, loading and the trophy or orientation prompts.
 
 ## Performance Validation
 
@@ -151,6 +177,12 @@ pnpm test --coverage
 - First visit — Use a fresh browser profile and open the game with the default selections. Press Start as soon as the controls are available. Measure from opening the page to the first accepted swing. The target is under 10 seconds.
 - Return visit — Reopen with the same browser profile. Verify one press on Start enters the default round. Record device, browser, network conditions and cache state for each run.
 
+### First-session play and achievements (SC-004, SC-005, SC-007)
+
+- Observe first-time players without providing instructions. Record whether they find Start and use the controls to play. At least 90% should do so unaided.
+- Record the starting and ending values of `smash_em_all_total_rounds` in each participant's browser storage. Use the difference and direct observation to count completed replays separately from the initial round. Compare the session average with the target of three replays.
+- For all ten badges, record the room, mode, weapon and completed round outcome where the badge unlocks through natural gameplay. Use the trophy cabinet to track the remaining conditions and include cumulative badges that require several rounds.
+
 ### Swing Response (SC-006)
 
 1. On desktop and on a mid-range phone, enable sound and use synchronized video and audio to capture the press or tap, the first visible frame of the swing and the onset of the outcome sound. Record the device, browser and capture resolution in time.
@@ -160,20 +192,12 @@ pnpm test --coverage
 ### Build, Download and Frame Rate
 
 ```bash
-# Production build
-pnpm build
-
-# Check bundle size
-ls -la dist/assets/*.js  # Should be < 200 KB gzipped
-
-# Check asset sizes
-ls -la public/assets/models/maps/*.glb  # Each < 2 MB
-ls -la public/assets/models/cockroach.glb  # < 100 KB
-ls -la public/assets/models/weapons/*.glb  # Each < 50 KB
+# Report total gzip bytes across emitted JavaScript after pnpm build
+node --input-type=module -e "import {readdirSync, readFileSync} from 'node:fs'; import {gzipSync} from 'node:zlib'; const files = readdirSync('dist/assets').filter(file => file.endsWith('.js')); console.log(files.reduce((bytes, file) => bytes + gzipSync(readFileSync('dist/assets/' + file)).length, 0));"
 ```
 
-**In-browser (Chrome DevTools):**
-1. Open Performance tab → Record a 10-second gameplay session
-2. Verify: frame rate stays at 60 fps on desktop
-3. Open Network tab → Hard refresh → Verify total transfer < 4 MB (1 map)
-4. Mobile: Connect via Chrome Remote Debugging → verify ≥ 55 fps on mid-range device
+Verify the emitted JavaScript totals less than 200 KB gzipped. The asset suite checks the individual GLB limits of 2 MB per map, 100 KB for the cockroach and 50 KB per weapon.
+
+1. In the production preview, record at least 10 seconds of active gameplay in the Performance panel and verify 60 fps on desktop.
+2. For each cold selected-map sample use a fresh profile or disable cache and clear network entries before navigating. Measure the total transferred bytes from navigation through the first playable frame with one room selected. Keep the selected room, preload/preview traffic and network settings in the record and verify the combined transfer is below 4 MB.
+3. Repeat the frame rate capture on a mid-range physical phone using remote debugging and verify at least 55 fps. Record the room, mode, device and browser with the readings.

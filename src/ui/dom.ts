@@ -15,6 +15,22 @@ export function button(label: string, className: string, action: () => void): HT
   node.addEventListener('click', action);
   return node;
 }
+
+export function keepDialogFocus(dialog: HTMLElement): void {
+  dialog.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return;
+    const buttons = dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (event.shiftKey && (event.target === first || event.target instanceof HTMLHeadingElement)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && event.target === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+}
 import type { I18n } from '../i18n/i18n';
 
 

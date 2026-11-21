@@ -19,7 +19,6 @@ import { StartScreen } from './ui/start-screen';
 import { TrophyCabinet } from './ui/trophy-cabinet';
 import { EventEmitter } from './utils/event-emitter';
 import { ProfileStorage } from './utils/storage';
-import './ui/styles.css';
 
 interface MapRequest {
   id: MapId;
@@ -233,6 +232,8 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   function refreshOverlayVisibility(): void {
     const portrait = orientation.portrait;
     const { state } = round;
+    document.body.toggleAttribute('data-ad-break',
+      !portrait && (state === 'GAME_OVER' || (state === 'MENU' && !trophyOpen)));
     start.root.hidden = portrait || trophyOpen || (state !== 'MENU' && state !== 'LOADING' && state !== 'READY');
     trophies.root.hidden = portrait || !trophyOpen;
     hud.root.hidden = portrait || state !== 'PLAYING';
@@ -242,6 +243,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
 
   function updateOrientation(): void {
     const portrait = orientation.portrait;
+    const returningToLandscape = !portrait && !orientation.root.hidden;
     refreshOverlayVisibility();
     orientation.show(portrait);
     if (portrait && round.state === 'PLAYING') {
@@ -250,6 +252,11 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     } else if (!portrait) {
       if (rotationPaused) resumeWhenAllowed();
       startWhenReady();
+      if (returningToLandscape) {
+        if (!pause.root.hidden) pause.focus();
+        else if (!results.root.hidden) results.focus();
+        else if (!trophies.root.hidden) trophies.focus();
+      }
     }
   }
 

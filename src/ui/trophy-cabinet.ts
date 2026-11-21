@@ -17,14 +17,16 @@ export function badgeCard(i18n: I18n, id: AchievementId, unlocked: boolean): HTM
 
 export class TrophyCabinet {
   readonly root = element('section', 'modal-overlay trophy-overlay');
+  private readonly title = copy(element('h2'), 'menu.trophies');
   private readonly grid = element('ul', 'badge-grid');
   private readonly count = element('p', 'trophy-count');
   private readonly back: HTMLButtonElement;
 
   constructor(private readonly i18n: I18n, private readonly storage: ProfilePersistence, onClose: () => void) {
     const card = element('div', 'card trophy-card');
-    const title = copy(element('h2'), 'menu.trophies');
+    const { title } = this;
     title.id = 'trophy-title';
+    title.tabIndex = -1;
     const header = element('header', 'trophy-header');
     const heading = element('div');
     heading.append(title, this.count);
@@ -52,6 +54,10 @@ export class TrophyCabinet {
     this.root.scrollTop = 0;
     this.localize();
     this.back.focus({ preventScroll: true });
+  }
+
+  focus(): void {
+    this.title.focus();
   }
 
   localize(): void {

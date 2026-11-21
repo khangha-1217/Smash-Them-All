@@ -4,29 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Smash 'Em All</title>
-    <style>
-      body {
-        margin: 0;
-      }
-
-      #game {
-        display: block;
-        width: 100vw;
-        height: 100vh;
-        height: 100dvh;
-      }
-
-      #ui {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-      }
-    </style>
+    <link rel="stylesheet" href="/src/ui/styles.css">
   </head>
   <body>
-    <div id="ad-slot-top" hidden></div>
-    <div id="ad-slot-bottom" hidden></div>
     <canvas id="game"></canvas>
+    <div id="ad-slot-top" class="ad-slot" aria-hidden="true" inert hidden></div>
+    <div id="ad-slot-bottom" class="ad-slot" aria-hidden="true" inert hidden></div>
     <div id="ui"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

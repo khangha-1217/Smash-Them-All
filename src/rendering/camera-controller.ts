@@ -28,6 +28,7 @@ export class CameraController {
     this.pitch = map.playerStart.rotation.x;
     this.yaw = map.playerStart.rotation.y;
     this.applyPose();
+    this.notify();
   }
 
   preview(elapsed: number): void {

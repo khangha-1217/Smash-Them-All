@@ -1,8 +1,10 @@
 import type { AchievementId } from '../core/achievement-tracker';
 import type { RoundResult } from '../core/types';
 import type { I18n } from '../i18n/i18n';
-import { button, copy, element, translateCopy } from './dom';
+import { button, copy, element, keepDialogFocus, translateCopy } from './dom';
 import { badgeCard } from './trophy-cabinet';
+
+const CONFETTI_PIECES = 24;
 
 export class GameOverScreen {
   readonly root = element('section', 'modal-overlay results-overlay');
@@ -38,7 +40,22 @@ export class GameOverScreen {
     this.card.setAttribute('aria-modal', 'true');
     this.card.setAttribute('aria-labelledby', title.id);
     this.card.append(title, summary, this.stats, this.best, this.next, this.achievements, actions);
-    this.root.append(this.card);
+    keepDialogFocus(this.card);
+
+    const confetti = element('div', 'result-confetti');
+    confetti.setAttribute('aria-hidden', 'true');
+    for (let index = 0; index < CONFETTI_PIECES; index++) {
+      const piece = element('span');
+      const side = index % 2 === 0 ? -1 : 1;
+      const spread = 9 + (index * 13 % 23);
+      piece.style.setProperty('--start', `${50 + side * 12}%`);
+      piece.style.setProperty('--spread', `${side * spread}vw`);
+      piece.style.setProperty('--rise', `-${18 + (index * 11 % 22)}vh`);
+      piece.style.setProperty('--spin', `${side * (170 + index * 23)}deg`);
+      piece.style.setProperty('--delay', `${index * 13 % 220}ms`);
+      confetti.append(piece);
+    }
+    this.root.append(confetti, this.card);
     this.root.hidden = true;
   }
 
@@ -50,7 +67,7 @@ export class GameOverScreen {
     const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.displayedScore = reduceMotion ? result.score : 0;
     this.localize();
-    this.title.focus({ preventScroll: true });
+    this.focus();
     if (reduceMotion) return;
 
     const startedAt = performance.now();
@@ -61,6 +78,10 @@ export class GameOverScreen {
       if (progress < 1) this.animation = requestAnimationFrame(count);
     };
     this.animation = requestAnimationFrame(count);
+  }
+
+  focus(): void {
+    this.title.focus();
   }
 
   localize(): void {

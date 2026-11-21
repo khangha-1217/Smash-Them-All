@@ -1,5 +1,5 @@
 import type { I18n } from '../i18n/i18n';
-import { button, copy, element, translateCopy } from './dom';
+import { button, copy, element, keepDialogFocus, translateCopy } from './dom';
 
 export class PauseOverlay {
   readonly root = element('section', 'modal-overlay');
@@ -24,6 +24,7 @@ export class PauseOverlay {
     this.status.setAttribute('role', 'status');
     this.status.hidden = true;
     card.append(title, actions, this.status);
+    keepDialogFocus(card);
     this.root.append(card);
     this.root.hidden = true;
     this.localize();
@@ -31,6 +32,10 @@ export class PauseOverlay {
 
   show(): void {
     this.status.hidden = true;
+    this.focus();
+  }
+
+  focus(): void {
     this.resume.focus();
   }
 
