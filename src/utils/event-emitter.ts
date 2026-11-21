@@ -52,9 +52,14 @@ export interface GameEvents {
 
 type EventName = keyof GameEvents;
 type Listener<K extends EventName> = (payload: GameEvents[K]) => void;
+type ListenerErrorReporter = (error: unknown, event: EventName) => void;
 
 export class EventEmitter {
   private readonly listeners = new Map<EventName, Set<(payload: never) => void>>();
+
+  constructor(private readonly reportListenerError: ListenerErrorReporter = (error, event) => {
+    console.error('Game event listener failed', event, error);
+  }) {}
 
   on<K extends EventName>(event: K, listener: Listener<K>): () => void {
     const listeners = this.listeners.get(event) ?? new Set<(payload: never) => void>();
@@ -74,7 +79,15 @@ export class EventEmitter {
     if (!listeners?.size) return;
 
     for (const listener of [...listeners]) {
-      listener(payload);
+      try {
+        listener(payload);
+      } catch (error) {
+        try {
+          this.reportListenerError(error, event);
+        } catch {
+          // Error reporting must also leave event delivery and the producer intact.
+        }
+      }
     }
   }
 }
