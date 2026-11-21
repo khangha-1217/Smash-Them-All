@@ -165,13 +165,13 @@
 
 **Independent test** — Run V8 in both modes. Hear immediate swing feedback, proximity/direction, combo and last-10s cues; mute during play, reopen muted, then enable sound again.
 
-- [ ] T086 [US8] Add red checks in `tests/assets/asset-contract.test.ts` for the remaining audio inventory, paths and size budgets. After T062, T033.
-- [ ] T087 [P] [US8] Source commercial-use or CC0 cues at `public/assets/audio/sfx/scurry.mp3`, `public/assets/audio/sfx/buzz.mp3`, `public/assets/audio/sfx/ui-click.mp3`, `public/assets/audio/sfx/combo-chime.mp3`, `public/assets/audio/sfx/timer-tick.mp3` and `public/assets/audio/sfx/gameover.mp3`. Keep mono, 44.1kHz and <50 KB per file. After T086.
-- [ ] T088 [P] [US8] Source commercial-use or CC0 loopable music at `public/assets/audio/music/normal-bgm.mp3` and `public/assets/audio/music/hell-bgm.mp3`. Keep stereo, 44.1kHz and <500 KB per file. After T086.
-- [ ] T089 [US8] Extend `src/audio/audio-manager.ts` to preload/decode sounds, switch mode music and manage category gains and immediate master mute. Initialize from `smash_em_all_sound` and persist changes via the storage adapter. After T035, T087, T088.
-- [ ] T090 [US8] Track listener pose and use bounded PannerNode sources for scurry/buzz in `src/audio/audio-manager.ts`. Update positions without starting new sources on every movement event and release sources on despawn, pause or round exit. After T089, T052.
-- [ ] T091 [P] [US8] In `src/main.ts` connect player pose, cockroach lifecycle, UI click, x5/x10 chimes, final-10s ticking, round jingle and mode music. Reset sources across pause, quit and replay. Apply `SOUND_TOGGLED` immediately and retain T035's single outcome cue per accepted swing. After T090, T078.
-- [ ] T092 [P] [US8] Add localized mute controls to `src/ui/start-screen.ts` and `src/ui/hud.ts`. Initialize from the stored preference and keep both controls synchronized via `SOUND_TOGGLED`. After T089, T083.
+- [X] T086 [US8] Add red checks in `tests/assets/asset-contract.test.ts` for the remaining audio inventory, paths and size budgets. After T062, T033.
+- [X] T087 [P] [US8] Source commercial-use or CC0 cues at `public/assets/audio/sfx/scurry.mp3`, `public/assets/audio/sfx/buzz.mp3`, `public/assets/audio/sfx/ui-click.mp3`, `public/assets/audio/sfx/combo-chime.mp3`, `public/assets/audio/sfx/timer-tick.mp3` and `public/assets/audio/sfx/gameover.mp3`. Keep mono, 44.1kHz and <50 KB per file. After T086.
+- [X] T088 [P] [US8] Source commercial-use or CC0 loopable music at `public/assets/audio/music/normal-bgm.mp3` and `public/assets/audio/music/hell-bgm.mp3`. Keep stereo, 44.1kHz and <500 KB per file. After T086.
+- [X] T089 [US8] Extend `src/audio/audio-manager.ts` to preload/decode sounds, switch mode music and manage category gains and immediate master mute. Initialize from `smash_em_all_sound` and persist changes via the storage adapter. After T035, T087, T088.
+- [X] T090 [US8] Track listener pose and use bounded PannerNode sources for scurry/buzz in `src/audio/audio-manager.ts`. Update positions without starting new sources on every movement event and release sources on despawn, pause or round exit. After T089, T052.
+- [X] T091 [P] [US8] In `src/main.ts` connect player pose, cockroach lifecycle, UI click, x5/x10 chimes, final-10s ticking, round jingle and mode music. Reset sources across pause, quit and replay. Apply `SOUND_TOGGLED` immediately and retain T035's single outcome cue per accepted swing. After T090, T078.
+- [X] T092 [P] [US8] Add localized mute controls to `src/ui/start-screen.ts` and `src/ui/hud.ts`. Initialize from the stored preference and keep both controls synchronized via `SOUND_TOGGLED`. After T089, T083.
 
 ## Phase 11 — Polish and release validation
 

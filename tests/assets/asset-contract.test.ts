@@ -136,14 +136,19 @@ describe('model asset contract', () => {
   });
 });
 
-const soundEffects = ['hit.mp3', 'miss.mp3'];
+const audioAssets = [
+  ...['hit', 'miss', 'scurry', 'buzz', 'ui-click', 'combo-chime', 'timer-tick', 'gameover']
+    .map(name => ({ path: `audio/sfx/${name}.mp3`, maxBytes: 50_000, channels: 1 })),
+  ...['normal-bgm', 'hell-bgm']
+    .map(name => ({ path: `audio/music/${name}.mp3`, maxBytes: 500_000, channels: 2 })),
+];
 
-describe('sound effect asset contract', () => {
-  it.each(soundEffects)('%s is a 44.1 kHz mono MP3 under 50 KB', (name) => {
-    const file = assetBytes(`audio/sfx/${name}`);
-    expect(file.length).toBeLessThan(50_000);
+describe('audio asset contract', () => {
+  it.each(audioAssets)('$path is a 44.1 kHz MP3 with $channels channel(s) under $maxBytes bytes', ({ path, maxBytes, channels }) => {
+    const file = assetBytes(path);
+    expect(file.length).toBeLessThan(maxBytes);
 
-    // MPEG-1 Layer III at 44.1 kHz has sample-rate index 0 and mono channel mode 3.
+    // MPEG-1 Layer III uses sample-rate index 0 for 44.1 kHz and channel mode 3 for mono.
     const hasId3 = file.toString('ascii', 0, 3) === 'ID3';
     const tagSize = hasId3
       ? file.subarray(6, 10).reduce((size, byte) => (size << 7) | (byte & 0x7f), 0)
@@ -158,7 +163,7 @@ describe('sound effect asset contract', () => {
       expect(header >>> 21).toBe(0x7ff);
       expect((header >>> 17) & 0xf).toBe(0xd);
       expect((header >>> 10) & 0x3).toBe(0);
-      expect((header >>> 6) & 0x3).toBe(3);
+      expect(((header >>> 6) & 0x3) === 3 ? 1 : 2).toBe(channels);
       const bitrate = bitrates[(header >>> 12) & 0xf];
       expect(bitrate).toBeGreaterThan(0);
       offset += Math.floor(144_000 * bitrate / 44_100) + ((header >>> 9) & 1);

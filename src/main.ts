@@ -35,9 +35,10 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   const storage = new ProfileStorage();
   const achievements = new AchievementTracker(storage, events);
   const i18n = new I18n(storage, events);
-  const audio = new AudioManager(events, storage.load().soundEnabled);
+  const { soundEnabled } = storage.load();
+  const audio = new AudioManager(events, storage);
   const camera = new CameraController(scene.camera, events);
-  const hud = new Hud(i18n, events, pauseRound);
+  const hud = new Hud(i18n, events, soundEnabled, pauseRound);
   const vfx = new Vfx(scene.world, scene.camera, hud.reticle, hud.effects, i18n);
 
   let map: LoadedMap | undefined;
@@ -80,7 +81,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     },
   });
 
-  const start = new StartScreen(i18n, begin, ({ mapId }) => preview(mapId), () => {
+  const start = new StartScreen(i18n, events, soundEnabled, begin, ({ mapId }) => preview(mapId), () => {
     if (round.state !== 'MENU' || orientation.portrait) return;
     trophyOpen = true;
     refreshOverlayVisibility();
@@ -89,7 +90,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   const pause = new PauseOverlay(i18n, () => {
     if (round.state !== 'PAUSED' || !focused() || orientation.portrait) return;
     resumeRequested = true;
-    void audio.activate();
+    audio.activate();
     input.acquire();
     resumeWhenAllowed();
   }, () => {
@@ -118,6 +119,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   });
 
   events.on('STATE_CHANGED', ({ to }) => {
+    audio.setState(to);
     input.setEnabled(to === 'PLAYING');
     if (to !== 'GAME_OVER') results.hide();
     if (to !== 'MENU') trophyOpen = false;
@@ -144,12 +146,34 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   });
 
   events.on('WEAPON_SWING', () => weapon?.swing());
-  events.on('COCKROACH_SPAWNED', event => roaches?.spawn(event));
-  events.on('COCKROACH_MOVED', event => roaches?.moveTo(event));
-  events.on('COCKROACH_DESPAWNED', event => roaches?.despawn(event));
-  events.on('COCKROACH_HIT', event => vfx.hit(event));
+  events.on('PLAYER_MOVED', pose => audio.setListenerPose(pose));
+  events.on('ROUND_STARTED', ({ mode }) => audio.setMode(mode));
+  events.on('COCKROACH_SPAWNED', event => {
+    roaches?.spawn(event);
+    audio.setRoach(event.cockroachId, event.position, 'idle');
+  });
+  events.on('COCKROACH_MOVED', event => {
+    roaches?.moveTo(event);
+    audio.setRoach(event.cockroachId, event.position, event.state);
+  });
+  events.on('COCKROACH_PREFLIGHT', ({ cockroachId, position }) => audio.setRoach(cockroachId, position, 'preflight'));
+  events.on('COCKROACH_FLYING', ({ cockroachId, position }) => audio.setRoach(cockroachId, position, 'flying'));
+  events.on('COCKROACH_DESPAWNED', event => {
+    roaches?.despawn(event);
+    audio.despawn(event.cockroachId);
+  });
+  events.on('COCKROACH_HIT', event => {
+    audio.play('hit');
+    vfx.hit(event);
+  });
+  events.on('WEAPON_MISS', () => audio.play('miss'));
   events.on('COCKROACH_NEAR_MISS', () => vfx.nearMiss());
+  events.on('COMBO_UPDATED', ({ multiplier }) => {
+    if (multiplier === 5 || multiplier === 10) audio.play('combo-chime');
+  });
+  events.on('TIMER_WARNING', () => audio.play('timer-tick'));
   events.on('ROUND_ENDED', ({ roundResult }) => {
+    audio.play('gameover');
     const { mapId, mode, score } = roundResult;
     const previous = storage.recordPersonalBest(mapId, mode, score);
     const newlyUnlocked = achievements.completeRound(roundResult);
@@ -157,7 +181,23 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     refreshOverlayVisibility();
   });
 
-  window.addEventListener('pointerdown', () => void audio.activate(), { once: true });
+  const playUiClick = () => {
+    audio.activate();
+    audio.play('ui-click');
+  };
+  ui.addEventListener('click', ({ target }) => {
+    if (target instanceof Element && target.closest('button')) playUiClick();
+  });
+  ui.addEventListener('change', ({ target }) => {
+    if (target instanceof HTMLInputElement && target.type === 'radio') playUiClick();
+  });
+  window.addEventListener('pointerdown', () => audio.activate(), { once: true });
+  window.addEventListener('keydown', event => {
+    // Pointer lock sends desktop mouse input to the game canvas.
+    if (round.state !== 'PLAYING' || event.code !== 'KeyM' || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    event.preventDefault();
+    hud.sound.root.click();
+  });
   window.addEventListener('blur', onFocusLoss);
   window.addEventListener('focus', updateOrientation);
   document.addEventListener('visibilitychange', () => {
@@ -236,9 +276,9 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   }
 
   function prepareFromGesture(): Promise<void> {
-    const audioReady = audio.activate();
+    audio.activate();
     if (focused()) input.acquire();
-    return prepareRound(round.selection!, audioReady);
+    return prepareRound(round.selection!);
   }
 
   function preview(mapId: MapId): void {
@@ -283,7 +323,8 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     return loaded;
   }
 
-  async function prepareRound(config: RoundConfig, audioReady: Promise<void>): Promise<void> {
+  async function prepareRound(config: RoundConfig): Promise<void> {
+    const outcomesReady = audio.waitForOutcomes();
     const abort = new AbortController();
     pendingRound = abort;
     const progress = [0, 0, 0];
@@ -313,7 +354,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
       if (mapResult.status === 'rejected') throw mapResult.reason;
       if (weaponResult.status === 'rejected') throw weaponResult.reason;
       if (roachResult.status === 'rejected') throw roachResult.reason;
-      await audioReady;
+      await outcomesReady;
       if (pendingRound !== abort || round.state !== 'LOADING' || abort.signal.aborted) return;
 
       preparedWeapon = new WeaponViewmodel(weaponResult.value, scene.viewmodel, scene.weaponCamera);
@@ -375,6 +416,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
       round.updatePlayerPosition(scene.camera.position);
       round.tick(elapsedMs);
       if (round.state === 'PLAYING') {
+        audio.updateAmbience(seconds);
         roaches?.update(seconds);
         weapon?.update(seconds, walking);
         vfx.update(seconds, (x, y) => camera.shake(x, y));

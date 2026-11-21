@@ -122,6 +122,12 @@ export class ProfileStorage implements ProfilePersistence {
     for (const field of PROFILE_FIELDS) this.writeField(snapshot, field);
   }
 
+  setSoundEnabled(enabled: boolean): void {
+    const profile = this.loadSession();
+    profile.soundEnabled = enabled;
+    this.writeField(profile, 'soundEnabled');
+  }
+
   recordPersonalBest(mapId: MapId, mode: GameMode, score: number): number | undefined {
     const profile = this.loadSession();
     const key = `${mapId}_${mode}`;

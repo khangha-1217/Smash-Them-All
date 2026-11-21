@@ -2,6 +2,7 @@ import type { GameMode } from '../core/types';
 import type { I18n } from '../i18n/i18n';
 import type { EventEmitter } from '../utils/event-emitter';
 import { button, copy, element, translateCopy } from './dom';
+import { SoundToggle } from './sound-toggle';
 
 export class Hud {
   readonly root = element('section', 'hud');
@@ -15,12 +16,13 @@ export class Hud {
   private readonly kills = element('strong', 'kill-value');
   private readonly flightWarning = copy(element('div', 'chip flight-warning'), 'hud.flight');
   private readonly preparingToFly = new Set<number>();
+  readonly sound: SoundToggle;
   private currentMode: GameMode = 'normal';
   private currentScore = 0;
   private currentKills = 0;
   private multiplier = 1;
 
-  constructor(private readonly i18n: I18n, events: EventEmitter, onPause: () => void) {
+  constructor(private readonly i18n: I18n, events: EventEmitter, soundEnabled: boolean, onPause: () => void) {
     const board = element('div', 'scoreboard');
     this.timer.setAttribute('role', 'timer');
     this.timer.dataset.localeLabel = 'hud.time';
@@ -44,9 +46,11 @@ export class Hud {
     this.flightWarning.hidden = true;
     const pauseButton = button('Ⅱ', 'button secondary touch-pause', onPause);
     pauseButton.dataset.localeLabel = 'hud.pause';
+    this.sound = new SoundToggle(i18n, events, 'button secondary hud-sound', soundEnabled);
+    this.sound.root.setAttribute('aria-keyshortcuts', 'M');
     this.joystick.setAttribute('aria-hidden', 'true');
     this.root.append(this.mode, board, this.combo, killBadge, controls, this.reticle, this.effects,
-      this.flightWarning, this.joystick, pauseButton);
+      this.flightWarning, this.joystick, pauseButton, this.sound.root);
     this.root.hidden = true;
 
     events.on('ROUND_STARTED', ({ mode }) => this.reset(mode));
@@ -75,6 +79,7 @@ export class Hud {
 
   localize(): void {
     translateCopy(this.root, this.i18n);
+    this.sound.localize();
     this.mode.textContent = this.i18n.t(`mode.${this.currentMode}`);
     this.score.textContent = this.i18n.number(this.currentScore);
     this.kills.textContent = this.i18n.number(this.currentKills);

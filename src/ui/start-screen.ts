@@ -1,6 +1,8 @@
 import type { RoundConfig } from '../core/types';
 import type { I18n } from '../i18n/i18n';
+import type { EventEmitter } from '../utils/event-emitter';
 import { button, copy, element, translateCopy } from './dom';
+import { SoundToggle } from './sound-toggle';
 
 const MAPS = ['kitchen', 'livingroom', 'bedroom'] as const;
 const MODES = ['normal', 'hell'] as const;
@@ -18,11 +20,14 @@ export class StartScreen {
   private readonly status = element('p', 'load-status');
   private readonly actions = element('div', 'actions menu-actions');
   private readonly trophies: HTMLButtonElement;
+  private readonly sound: SoundToggle;
   private statusKey: MenuStatus = '';
   private config = { ...DEFAULT_SELECTION };
 
   constructor(
     private readonly i18n: I18n,
+    events: EventEmitter,
+    soundEnabled: boolean,
     onStart: (config: RoundConfig) => void,
     private readonly onSelect: (config: RoundConfig) => void,
     onTrophies: () => void,
@@ -43,7 +48,8 @@ export class StartScreen {
       i18n.setLanguage(i18n.language === 'vi' ? 'en' : 'vi');
     }), 'menu.language');
     language.dataset.localeLabel = 'menu.languageLabel';
-    this.actions.append(this.trophies, language);
+    this.sound = new SoundToggle(i18n, events, 'button secondary menu-sound', soundEnabled);
+    this.actions.append(this.trophies, language, this.sound.root);
     this.progress.max = 1;
     this.progress.dataset.localeLabel = 'menu.loadProgress';
     this.status.setAttribute('role', 'status');
@@ -91,6 +97,7 @@ export class StartScreen {
 
   localize(): void {
     translateCopy(this.root, this.i18n);
+    this.sound.localize();
     this.startButton.textContent = this.i18n.t(this.card.dataset.state === 'loading' ? 'menu.loading' : 'menu.start');
     this.status.textContent = this.statusKey ? this.i18n.t(this.statusKey) : '';
   }

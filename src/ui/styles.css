@@ -493,6 +493,17 @@ button, input { font: inherit; }
 
 .joystick, .touch-pause { display: none; }
 .touch-hud .control-hints { display: none; }
+.hud-sound {
+  position: absolute;
+  top: var(--gutter);
+  right: var(--gutter);
+  min-height: 44px;
+  padding-inline: 10px;
+  font-size: .86rem;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+.touch-hud .hud-sound { right: calc(var(--gutter) + 52px); }
 #game { touch-action: none; }
 
 .mobile-layout {
