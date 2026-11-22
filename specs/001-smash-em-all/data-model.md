@@ -154,8 +154,8 @@ Extracted from loaded GLB file.
 | Field | Type | Description |
 |-------|------|-------------|
 | id | `string` | Map identifier |
-| spawnPoints | `Array<{position, surfaceType, surfaceNormal}>` | Cockroach spawn locations |
-| waypoints | `Array<{position, surfaceType, surfaceNormal}>` | Navigation waypoints |
+| spawnPoints | `Array<{position, surfaceType, surfaceNormal, supportId?}>` | Cockroach spawn locations |
+| waypoints | `Array<{position, surfaceType, surfaceNormal, supportId?}>` | Navigation waypoints |
 | playerStart | `{position, rotation}` | Initial camera placement |
 | colliders | `Array<{min, max}>` | AABB boxes for walls and furniture |
 | roomBounds | `{min, max}` | Outer room boundary AABB |

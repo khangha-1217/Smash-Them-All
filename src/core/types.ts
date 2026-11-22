@@ -142,6 +142,8 @@ export interface SurfacePoint {
   position: Vec3;
   surfaceType: string;
   surfaceNormal: Vec3;
+  // Map-local ID of the collider that supports this point, when one is known.
+  supportId?: number;
 }
 
 export interface Aabb {

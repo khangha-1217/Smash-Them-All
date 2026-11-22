@@ -11,13 +11,17 @@ const base: RoundResult = {
 };
 
 function setup(profile: Partial<PlayerProfile> = {}) {
-  const fields = new Map<string, string>();
+  const fields = new Map<string, string>([
+    ['smash_em_all_achievements', JSON.stringify(profile.achievements ?? {})],
+    ['smash_em_all_total_rounds', JSON.stringify(profile.totalRounds ?? 0)],
+    ['smash_em_all_weapons_used', JSON.stringify(profile.weaponsUsed ?? [])],
+    ['smash_em_all_maps_played', JSON.stringify(profile.mapsPlayed ?? [])],
+  ]);
   const backend = {
     getItem: (key: string) => fields.get(key) ?? null,
     setItem: (key: string, value: string) => { fields.set(key, value); },
   };
   const storage = new ProfileStorage(() => backend);
-  storage.save({ ...storage.load(), ...profile });
   const events = new EventEmitter();
   const tracker = new AchievementTracker(storage, events);
   return { tracker, storage, events, reload: () => new ProfileStorage(() => backend) };
@@ -86,5 +90,35 @@ describe('achievement tracker', () => {
     expect(tracker.completeRound({ ...base, rank: 'S' })).toEqual(['golden_slipper']);
     expect(tracker.completeRound({ ...base, rank: 'S' })).toEqual([]);
     expect(storage.load()).toMatchObject({ achievements: { golden_slipper: true }, totalRounds: 2 });
+  });
+
+  it('counts both tabs’ completions and keeps their unlocked badges and selections', () => {
+    const { tracker, reload } = setup({ totalRounds: 28 });
+    const otherStorage = reload();
+    otherStorage.load();
+    const otherTab = new AchievementTracker(otherStorage, new EventEmitter());
+
+    expect(tracker.completeRound({ ...base, rank: 'S' })).toEqual(['golden_slipper']);
+    const unlocked = otherTab.completeRound({ ...base, rank: 'S', mapId: 'bedroom', weaponId: 'cardboard' });
+
+    expect(reload().load()).toMatchObject({
+      achievements: { golden_slipper: true, night_owl: true },
+      totalRounds: 30,
+      weaponsUsed: ['slipper', 'cardboard'],
+      mapsPlayed: ['kitchen', 'bedroom'],
+    });
+    expect(unlocked).toEqual(['night_owl']);
+  });
+
+  it('compares a score to the latest personal best and preserves other boards', () => {
+    const { storage, reload } = setup();
+    const otherTab = reload();
+    otherTab.load();
+    storage.recordPersonalBest('kitchen', 'normal', 1_200);
+
+    expect(otherTab.recordPersonalBest('kitchen', 'normal', 900)).toBe(1_200);
+    otherTab.recordPersonalBest('bedroom', 'hell', 500);
+
+    expect(reload().load().personalBests).toEqual({ kitchen_normal: 1_200, bedroom_hell: 500 });
   });
 });

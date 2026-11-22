@@ -72,7 +72,7 @@ export class GameOverScreen {
 
     const startedAt = performance.now();
     const count = (now: number) => {
-      const progress = Math.min(1, (now - startedAt) / 580);
+      const progress = Math.max(0, Math.min(1, (now - startedAt) / 580));
       this.displayedScore = Math.round(result.score * (1 - (1 - progress) ** 3));
       this.score.textContent = this.i18n.number(this.displayedScore);
       if (progress < 1) this.animation = requestAnimationFrame(count);

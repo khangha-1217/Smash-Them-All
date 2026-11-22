@@ -1,4 +1,4 @@
-import type { GameMode, MapId, PlayerProfile, WeaponId } from '../core/types';
+import type { GameMode, Language, MapId, PlayerProfile, WeaponId } from '../core/types';
 
 export interface StorageBackend {
   getItem(key: string): string | null;
@@ -7,8 +7,11 @@ export interface StorageBackend {
 
 export interface ProfilePersistence {
   load(): PlayerProfile;
-  save(profile: PlayerProfile): void;
+  setLanguage(language: Language): void;
+  updateRoundProgress<T>(update: (progress: RoundProgress) => T): T;
 }
+
+export type RoundProgress = Pick<PlayerProfile, 'achievements' | 'totalRounds' | 'weaponsUsed' | 'mapsPlayed'>;
 
 const MAP_IDS: Record<MapId, true> = { kitchen: true, livingroom: true, bedroom: true };
 const WEAPON_IDS: Record<WeaponId, true> = { slipper: true, flyswatter: true, cardboard: true };
@@ -68,6 +71,7 @@ const FIELDS: ProfileFields = {
 };
 
 const PROFILE_FIELDS = Object.keys(FIELDS) as (keyof PlayerProfile)[];
+const ROUND_FIELDS = ['achievements', 'totalRounds', 'weaponsUsed', 'mapsPlayed'] as const;
 
 export function createDefaultProfile(): PlayerProfile {
   return {
@@ -91,7 +95,12 @@ function copyProfile(profile: PlayerProfile): PlayerProfile {
   };
 }
 
-function readField<K extends keyof PlayerProfile>(profile: PlayerProfile, storage: StorageBackend, field: K): void {
+function readField<K extends keyof PlayerProfile>(
+  profile: PlayerProfile,
+  storage: StorageBackend,
+  field: K,
+  merge: (session: PlayerProfile[K], stored: PlayerProfile[K]) => PlayerProfile[K] = (_session, stored) => stored,
+): void {
   const { key, parse } = FIELDS[field];
 
   try {
@@ -99,10 +108,14 @@ function readField<K extends keyof PlayerProfile>(profile: PlayerProfile, storag
     if (stored === null) return;
 
     const value = parse(JSON.parse(stored));
-    if (value !== undefined) profile[field] = value;
+    if (value !== undefined) profile[field] = merge(profile[field], value);
   } catch {
-    // Keep the default for this field and continue loading the other fields.
+    // Keep the current session value if reading this field fails.
   }
+}
+
+function mergeUsedIds(session: string[], stored: string[]): string[] {
+  return [...new Set([...stored, ...session])];
 }
 
 export class ProfileStorage implements ProfilePersistence {
@@ -115,11 +128,27 @@ export class ProfileStorage implements ProfilePersistence {
     return copyProfile(this.loadSession());
   }
 
-  save(profile: PlayerProfile): void {
-    this.loadSession();
-    const snapshot = copyProfile(profile);
-    this.profile = snapshot;
-    for (const field of PROFILE_FIELDS) this.writeField(snapshot, field);
+  setLanguage(language: Language): void {
+    const profile = this.loadSession();
+    profile.language = language;
+    this.writeField(profile, 'language');
+  }
+
+  updateRoundProgress<T>(update: (progress: RoundProgress) => T): T {
+    const profile = this.loadSession();
+    if (this.storage) {
+      readField(profile, this.storage, 'totalRounds', Math.max);
+      readField(profile, this.storage, 'achievements', (session, stored) => ({
+        ...session,
+        ...Object.fromEntries(Object.entries(stored).map(([id, unlocked]) => [id, unlocked || session[id] === true])),
+      }));
+      readField(profile, this.storage, 'weaponsUsed', mergeUsedIds);
+      readField(profile, this.storage, 'mapsPlayed', mergeUsedIds);
+    }
+
+    const result = update(profile);
+    for (const field of ROUND_FIELDS) this.writeField(profile, field);
+    return result;
   }
 
   setSoundEnabled(enabled: boolean): void {
@@ -130,6 +159,12 @@ export class ProfileStorage implements ProfilePersistence {
 
   recordPersonalBest(mapId: MapId, mode: GameMode, score: number): number | undefined {
     const profile = this.loadSession();
+    if (this.storage) {
+      readField(profile, this.storage, 'personalBests', (session, stored) => ({
+        ...session,
+        ...Object.fromEntries(Object.entries(stored).map(([key, best]) => [key, Math.max(best, session[key] ?? best)])),
+      }));
+    }
     const key = `${mapId}_${mode}`;
     const previous = profile.personalBests[key];
     if (isNonnegativeInteger(score) && (previous === undefined || score > previous)) {

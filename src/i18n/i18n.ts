@@ -11,7 +11,7 @@ export class I18n {
   private activeLanguage: Language;
 
   constructor(
-    private readonly storage: ProfilePersistence,
+    private readonly storage: Pick<ProfilePersistence, 'load' | 'setLanguage'>,
     private readonly events: EventEmitter,
     private readonly locales: Locales = LOCALES,
   ) {
@@ -25,7 +25,7 @@ export class I18n {
   setLanguage(language: Language): void {
     if (language === this.activeLanguage) return;
     this.activeLanguage = language;
-    this.storage.save({ ...this.storage.load(), language });
+    this.storage.setLanguage(language);
     this.events.emit('LANGUAGE_CHANGED', { language });
   }
 

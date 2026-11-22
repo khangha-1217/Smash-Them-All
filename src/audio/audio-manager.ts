@@ -10,6 +10,7 @@ const MUSIC = {
   hell: 'hell-bgm',
 } as const;
 type Clip = typeof EFFECTS[number] | typeof MUSIC[GameMode];
+type OutcomeClip = typeof OUTCOMES[number];
 type OneShot = Exclude<typeof EFFECTS[number], 'scurry' | 'buzz'>;
 type AmbientClip = 'scurry' | 'buzz';
 
@@ -40,9 +41,28 @@ interface AudioGraph {
 }
 
 function setPosition(node: AudioListener | PannerNode, { x, y, z }: Vec3): void {
-  node.positionX.value = x;
-  node.positionY.value = y;
-  node.positionZ.value = z;
+  const { positionX, positionY, positionZ } = node;
+  if (positionX && positionY && positionZ) {
+    positionX.value = x;
+    positionY.value = y;
+    positionZ.value = z;
+  } else {
+    node.setPosition?.(x, y, z);
+  }
+}
+
+function setOrientation(listener: AudioListener, forward: Vec3, up: Vec3): void {
+  const { forwardX, forwardY, forwardZ, upX, upY, upZ } = listener;
+  if (forwardX && forwardY && forwardZ && upX && upY && upZ) {
+    forwardX.value = forward.x;
+    forwardY.value = forward.y;
+    forwardZ.value = forward.z;
+    upX.value = up.x;
+    upY.value = up.y;
+    upZ.value = up.z;
+  } else {
+    listener.setOrientation?.(forward.x, forward.y, forward.z, up.x, up.y, up.z);
+  }
 }
 
 function makeGain(context: AudioContext, output: AudioNode, level: number): GainNode {
@@ -72,6 +92,7 @@ export class AudioManager {
   private readonly downloads = new Map<Clip, Promise<ArrayBuffer | null>>();
   private readonly decoding = new Map<Clip, Promise<void>>();
   private readonly buffers = new Map<Clip, AudioBuffer>();
+  private readonly outcomeFallbacks = new Map<OutcomeClip, AudioBuffer>();
   private readonly roaches = new Map<number, Roach>();
   private readonly voices = new Map<number, SpatialVoice>();
   private readonly cues = new Set<AudioBufferSourceNode>();
@@ -165,12 +186,11 @@ export class AudioManager {
     const sinYaw = Math.sin(yaw);
     const cosYaw = Math.cos(yaw);
     setPosition(listener, pose.position);
-    listener.forwardX.value = -sinYaw * cosPitch;
-    listener.forwardY.value = sinPitch;
-    listener.forwardZ.value = -cosYaw * cosPitch;
-    listener.upX.value = sinYaw * sinPitch;
-    listener.upY.value = cosPitch;
-    listener.upZ.value = cosYaw * sinPitch;
+    setOrientation(
+      listener,
+      { x: -sinYaw * cosPitch, y: sinPitch, z: -cosYaw * cosPitch },
+      { x: sinYaw * sinPitch, y: cosPitch, z: cosYaw * sinPitch },
+    );
   }
 
   setRoach(id: number, position: Vec3, state: CockroachState): void {
@@ -239,8 +259,9 @@ export class AudioManager {
 
   private startCue(clip: OneShot): boolean {
     const graph = this.graph;
-    const buffer = this.buffers.get(clip);
-    if (!buffer || graph?.context.state !== 'running') return false;
+    if (graph?.context.state !== 'running') return false;
+    const buffer = this.buffers.get(clip) ?? this.fallbackOutcome(graph.context, clip);
+    if (!buffer) return false;
     const source = this.createSource(graph.context, buffer, graph.effects);
     this.cues.add(source);
     source.onended = () => {
@@ -249,6 +270,28 @@ export class AudioManager {
     };
     source.start();
     return true;
+  }
+
+  private fallbackOutcome(context: AudioContext, clip: OneShot): AudioBuffer | undefined {
+    if (clip !== 'hit' && clip !== 'miss') return;
+    const cached = this.outcomeFallbacks.get(clip);
+    if (cached) return cached;
+
+    const hit = clip === 'hit';
+    const duration = hit ? 0.085 : 0.12;
+    const buffer = context.createBuffer(1, Math.ceil(context.sampleRate * duration), context.sampleRate);
+    const samples = buffer.getChannelData(0);
+    for (let index = 0; index < samples.length; index++) {
+      const progress = index / samples.length;
+      const seconds = index / context.sampleRate;
+      const envelope = Math.min(1, progress * 35) * (1 - progress) ** (hit ? 3 : 2);
+      const phase = 2 * Math.PI * seconds * (hit ? 150 - 45 * progress : 630 - 240 * progress);
+      samples[index] = envelope * (hit
+        ? 0.5 * (Math.sin(phase) + 0.28 * Math.sin(2.6 * phase))
+        : 0.32 * Math.sin(phase) * Math.sin(1.43 * phase));
+    }
+    this.outcomeFallbacks.set(clip, buffer);
+    return buffer;
   }
 
   private startMusic(): void {

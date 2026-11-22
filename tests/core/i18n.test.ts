@@ -58,4 +58,24 @@ describe('i18n', () => {
     i18n.setLanguage('vi');
     expect(changes).toEqual(['en', 'Start', 'vi', 'Bắt đầu']);
   });
+
+  it('changes only the language key after another tab saves a best score and mutes sound', () => {
+    const fields = new Map<string, string>();
+    const backend = {
+      getItem: (key: string) => fields.get(key) ?? null,
+      setItem: (key: string, value: string) => { fields.set(key, value); },
+    };
+    const staleTab = new I18n(new ProfileStorage(() => backend), new EventEmitter());
+    const currentTab = new ProfileStorage(() => backend);
+    currentTab.recordPersonalBest('kitchen', 'normal', 1_200);
+    currentTab.setSoundEnabled(false);
+
+    staleTab.setLanguage('en');
+
+    expect(Object.fromEntries(fields)).toEqual({
+      smash_em_all_language: '"en"',
+      smash_em_all_personal_bests: '{"kitchen_normal":1200}',
+      smash_em_all_sound: 'false',
+    });
+  });
 });

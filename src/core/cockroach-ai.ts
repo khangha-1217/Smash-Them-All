@@ -12,6 +12,7 @@ const DEFAULT_PLAYER_POSITION = { x: 0, y: 1.6, z: 0 };
 interface CockroachMotion {
   idleRemainingMs: number;
   destination: SurfacePoint | null;
+  supportId: number | undefined;
   flightPhaseRemainingMs: number;
   spawnIndex: number;
 }
@@ -57,6 +58,7 @@ export class CockroachAI {
     const motion: CockroachMotion = {
       idleRemainingMs: 0,
       destination: null,
+      supportId: start.supportId,
       flightPhaseRemainingMs: this.mode === 'hell' ? lerp(3_000, 8_000, this.random()) : Infinity,
       spawnIndex,
     };
@@ -135,6 +137,7 @@ export class CockroachAI {
       Object.assign(position, target.position);
       Object.assign(cockroach.surfaceNormal, target.surfaceNormal);
       cockroach.surfaceType = target.surfaceType;
+      motion.supportId = target.supportId;
       this.beginIdle(cockroach, motion);
     }
   }
@@ -151,6 +154,9 @@ export class CockroachAI {
     const sameSurface: SurfacePoint[] = [];
     const adjacent: SurfacePoint[] = [];
     for (const waypoint of this.waypoints) {
+      if (motion.supportId !== undefined && waypoint.supportId !== undefined && motion.supportId !== waypoint.supportId) {
+        continue;
+      }
       const range = distance(cockroach.position, waypoint.position);
       if (range === 0) continue;
       const sameTag = waypoint.surfaceType === cockroach.surfaceType;

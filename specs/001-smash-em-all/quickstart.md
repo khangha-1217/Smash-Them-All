@@ -201,3 +201,25 @@ Verify the emitted JavaScript totals less than 200 KB gzipped. The asset suite c
 1. In the production preview, record at least 10 seconds of active gameplay in the Performance panel and verify 60 fps on desktop.
 2. For each cold selected-map sample use a fresh profile or disable cache and clear network entries before navigating. Measure the total transferred bytes from navigation through the first playable frame with one room selected. Keep the selected room, preload/preview traffic and network settings in the record and verify the combined transfer is below 4 MB.
 3. Repeat the frame rate capture on a mid-range physical phone using remote debugging and verify at least 55 fps. Record the room, mode, device and browser with the readings.
+
+## Current Validation Record
+
+The isolated Windows worktree was verified with Chrome 157 and Chrome Android-device emulation. Chrome runs covered V1–V8 across the implementation, including a full 90-second Normal round. The V6 near-miss badge and some result and failure cases used development fixtures. The browser also reached results and replayed with storage access denied. Asset and headless checks passed with 131 tests across 12 suites and 100% branch coverage for the configured Core and i18n modules. Current Chrome was also used to confirm cancellation and model loading with `AbortSignal.throwIfAborted` unavailable, and to exercise the legacy Web Audio positioning fallback.
+
+### Production render sample
+
+Draw calls and triangles include the room, effects and weapon passes. The final Chrome run covered all six combinations on the production build with `AbortSignal.throwIfAborted` disabled. It reported no runtime exceptions.
+
+| Room | Normal draw calls | Normal triangles | Hell draw calls | Hell triangles |
+| --- | ---: | ---: | ---: | ---: |
+| Kitchen | 15 | 11,606 | 21 | 13,238 |
+| Living Room | 16 | 11,522 | 20 | 12,610 |
+| Bedroom | 14 | 11,954 | 21 | 13,858 |
+
+A cache-disabled Kitchen run transferred 1,261,730 bytes over local loopback. The largest room-switch sample, which included the initial Kitchen preview, transferred 1,460,354 bytes. Vite reported 194.74 kB of gzipped JavaScript. In an earlier local headless run, the first accepted swing scheduled its cue 194 ms after a cache-disabled navigation and 188 ms on a return visit. Each took one Start activation. These timings measure browser scheduling and loopback delivery.
+
+### Acceptance still open
+
+- **T098** — Actual Firefox, Safari desktop, iOS Safari and Android Chrome runs remain open. Installed Edge rendered the menu and room preview, then its headless runtime returned an internal Chromium error on a trusted pointer lock request, preventing an Edge desktop round. A separate Edge touch-emulated smoke reached gameplay and scored a hit. The end-to-end display and audio-output p95 requires synchronized physical capture.
+- **T099** — Transfer and JavaScript-size samples passed locally. Physical desktop and mid-range mobile frame-rate measurements remain open.
+- **T100** — The local one-click startup smoke passed. First-time player comprehension, average first-session replay count and natural unlocks for all ten badges still require direct playtest evidence.

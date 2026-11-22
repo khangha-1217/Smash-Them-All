@@ -97,6 +97,33 @@ describe('CockroachAI', () => {
     expect(cockroach.targetWaypoint).toEqual(alongWall.position);
   });
 
+  it.each([0, 0.5])('keeps crawling on the same counter support at switch roll %s', (roll) => {
+    const island = { ...start, surfaceType: 'counter', supportId: 0 };
+    const alongIsland = { ...island, position: { x: 1, y: 0, z: 0 } };
+    const backCounter = { ...island, position: { x: 0, y: 0, z: 1 }, supportId: 1 };
+    const ai = new CockroachAI([island], [alongIsland, backCounter], draws(0, 0, roll, 0.75, 0));
+    const cockroach = createCockroach(0);
+    ai.spawn(cockroach);
+
+    ai.update(cockroach, 300);
+
+    expect(cockroach.targetWaypoint).toEqual(alongIsland.position);
+  });
+
+  it('uses the new support after moving from an unclassified surface', () => {
+    const table = { ...first, surfaceType: 'table', supportId: 0 };
+    const alongTable = { ...second, surfaceType: 'table', supportId: 0 };
+    const otherTable = { ...alongTable, position: { x: 1, y: 0, z: 1 }, supportId: 1 };
+    const ai = new CockroachAI([start], [table, alongTable, otherTable], draws(0, 0, 0, 0, 0, 0, 0.5, 0.75, 0));
+    const cockroach = createCockroach(0);
+    ai.spawn(cockroach);
+
+    ai.update(cockroach, 2_600);
+
+    expect(cockroach.position).toEqual(table.position);
+    expect(cockroach.targetWaypoint).toEqual(alongTable.position);
+  });
+
   it('leaves an inactive cockroach untouched if no spawn is available', () => {
     const ai = new CockroachAI([], [], () => 0);
     const cockroach = createCockroach(12);

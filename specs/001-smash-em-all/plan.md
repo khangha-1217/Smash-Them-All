@@ -1,6 +1,6 @@
 # Implementation Plan: Smash 'Em All
 
-**Branch**: `001-smash-em-all` | **Date**: 2026-11-21 | **Spec**: [spec.md](./spec.md)
+**Branch**: `feat/smash-em-all` | **Date**: 2026-11-21 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `specs/001-smash-em-all/spec.md`
 
@@ -27,6 +27,10 @@ A browser-based 3D first-person arcade game where the player wields a slipper (o
 **Frame budget** — Count draw calls and triangles across all passes for one gameplay frame. A reference allocation for Hell Mode is 21,000 triangles for the room, 12,000 for 40 visible cockroaches at 300 each, 800 for the weapon and 1,000 for VFX (34,800 total). Use this allocation as an authoring target and adjust it if needed while keeping <35,000 triangles and <50 draw calls per frame. The asset-file caps are separate acceptance limits. Profile Kitchen in Normal at T048 and in Hell at T055, then verify all room/mode combinations in the production build at T096.
 
 **Constraints**: No server backend, no React/framework, no physics engine (Rapier/Cannon), no navmesh library. Custom raycast cone + sphere collision. Baked lighting only (no real-time shadows). Meshopt-compressed GLB assets. Web Audio API for audio. Landscape-only on mobile.
+
+**Runtime compatibility** — Check model-load cancellation with `AbortSignal.aborted` and dispose a decoded scene if its request became stale during decoding. The loader derives an optional support ID from each upward-facing furniture marker and its collider bounds. Ground AI uses known support IDs to avoid crawling directly between disconnected furniture pieces. GLB marker names and the asset contract remain the same.
+
+**Audio and profile persistence** — Use Web Audio parameters for spatial position and orientation where available, with legacy listener and panner methods as a fallback. Play one short synthesized outcome cue if the hit or miss sample is still unavailable. Write language and sound preferences individually. Read the latest stored round progress and personal bests before updating those keys, and keep session progress in memory when storage fails. The read-merge-write sequence is best effort for simultaneous writes from separate tabs.
 
 **Scale/Scope**: Single-player, 3 maps, 3 weapons (cosmetic), 2 modes, 10 achievements, 2 languages
 

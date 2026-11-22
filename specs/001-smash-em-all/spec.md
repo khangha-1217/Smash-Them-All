@@ -1,6 +1,6 @@
 # Feature Specification: Smash 'Em All — 3D First-Person Cockroach-Smashing Arcade Game
 
-**Feature Branch**: `001-smash-em-all`
+**Feature Branch**: `feat/smash-em-all`
 
 **Created**: 2026-11-20
 

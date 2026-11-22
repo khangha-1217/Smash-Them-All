@@ -16,6 +16,7 @@ const MAP_MODELS = {
   livingroom: 'maps/livingroom',
   bedroom: 'maps/bedroom',
 } satisfies Record<MapId, string>;
+const SUPPORT_TOLERANCE = 0.05;
 
 export async function loadModel(
   path: string,
@@ -55,11 +56,11 @@ export async function loadModel(
     buffer = await response.arrayBuffer();
   }
 
-  signal.throwIfAborted();
+  if (signal.aborted) throw new DOMException('Model load aborted', 'AbortError');
   const model = await loader.parseAsync(buffer, url.slice(0, url.lastIndexOf('/') + 1));
   if (signal.aborted) {
     disposeModel(model.scene);
-    signal.throwIfAborted();
+    throw new DOMException('Model load aborted', 'AbortError');
   }
   progress(1);
   return model;
@@ -77,6 +78,18 @@ function boundsFrom(node: Object3D): Aabb {
   const center = node.getWorldPosition(new Vector3());
   const box = new Box3().setFromCenterAndSize(center, new Vector3(2 * x, 2 * y, 2 * z));
   return { min: box.min, max: box.max };
+}
+
+function setSupportId(point: SurfacePoint, colliders: readonly Aabb[]): void {
+  if (point.surfaceType === 'floor' || point.surfaceNormal.y <= 0.5) return;
+  const { x, y, z } = point.position;
+  // Shelves can sit inside furniture bounds, and upholstered surfaces can sit just above them.
+  const supportId = colliders.findIndex(({ min, max }) => (
+    x >= min.x - SUPPORT_TOLERANCE && x <= max.x + SUPPORT_TOLERANCE
+    && y >= min.y && y <= max.y + SUPPORT_TOLERANCE
+    && z >= min.z - SUPPORT_TOLERANCE && z <= max.z + SUPPORT_TOLERANCE
+  ));
+  if (supportId !== -1) point.supportId = supportId;
 }
 
 export async function loadMap(
@@ -118,6 +131,8 @@ export async function loadMap(
     if (!playerStart || !roomBounds || !spawnPoints.length || !waypoints.length) {
       throw new Error(`Incomplete map metadata for ${mapId}`);
     }
+    for (const point of spawnPoints) setSupportId(point, colliders);
+    for (const point of waypoints) setSupportId(point, colliders);
     return { scene, data: { id: mapId, spawnPoints, waypoints, playerStart, colliders, roomBounds } };
   } catch (error) {
     disposeModel(scene);

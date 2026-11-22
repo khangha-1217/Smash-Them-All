@@ -22,7 +22,7 @@ export class TrophyCabinet {
   private readonly count = element('p', 'trophy-count');
   private readonly back: HTMLButtonElement;
 
-  constructor(private readonly i18n: I18n, private readonly storage: ProfilePersistence, onClose: () => void) {
+  constructor(private readonly i18n: I18n, private readonly storage: Pick<ProfilePersistence, 'load'>, onClose: () => void) {
     const card = element('div', 'card trophy-card');
     const { title } = this;
     title.id = 'trophy-title';
