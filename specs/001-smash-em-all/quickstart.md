@@ -33,7 +33,7 @@ For the US1 checkpoint at T048, run Kitchen, Normal and Slipper with desktop con
 2. Verify start screen loads with 3D kitchen scene in background
 3. Select Kitchen map, Normal mode, Slipper weapon
 4. Click "BẮT ĐẦU" / "START"
-5. Verify the load progress, pointer lock on desktop and 90-second countdown at top-center
+5. Verify the load progress, pointer lock on desktop and a countdown starting at `01:00` at top-center.
 6. Use WASD to move around the kitchen
 7. Click to swing slipper at a cockroach
 8. Verify the cockroach is eliminated, the splat appears, the score increases, and exactly one smack plays
@@ -41,8 +41,8 @@ For the US1 checkpoint at T048, run Kitchen, Normal and Slipper with desktop con
 10. Wait > 2s — verify combo resets
 11. Swing close enough to get a near-miss. Verify the crosshair reacts, combo resets and exactly one whoosh plays. Swing at empty space and verify it also counts as a miss and plays exactly one whoosh.
 12. Press Escape and switch away from the tab in separate checks. Verify the clock, score and spawns freeze while paused. Return and select Resume to continue.
-13. Wait for the 90-second active-play clock to expire. Verify the results show score, rank (S/A/B/C), kills, best combo and accuracy. At release, confirm the results transition and confetti play once, and repeat with reduced motion enabled to verify the results appear immediately.
-14. Click "CHƠI LẠI" / "PLAY AGAIN". Verify a fresh 90-second round starts with the same room, mode and weapon, and the score, combo and effects reset.
+13. Wait for the 60-second active-play clock to expire. Verify the results show score, rank (S/A/B/C), kills, best combo and accuracy. At release, confirm the results transition and confetti play once, and repeat with reduced motion enabled to verify the results appear immediately.
+14. Click "CHƠI LẠI" / "PLAY AGAIN". Verify the countdown returns to `01:00` with the same room, mode and weapon, and the score, combo and effects reset.
 
 **Expected:** Complete round plays through with all systems functional.
 
@@ -139,6 +139,23 @@ A dev-only fixture can place a cockroach just outside the hit cone but inside th
 
 **Expected:** Sound toggle works immediately, persists.
 
+### V9 Gameplay Feel Increment
+
+Use the setup above and run the following checks after implementing the [increment plan](./plan.md#gameplay-feel-increment-2026-11-23). The visual reference is `sample/Smash 'Em All (cut).mp4` at 0:06–0:08 in the workspace.
+
+1. **Screen scale and poses.** In Kitchen, mark a fixed countertop position for the cockroach and record its position, orientation and the camera pose in the calibration record. Position the camera 0.60 m away horizontally and 0.40 m above the center of its body. Aim at the center with the cockroach stationary and its body broadside across the frame. Keep the player stationary and the weapon in its resting pose. Capture at 1280 × 720 and 844 × 390. Measure the projected head-to-abdomen length excluding legs and antennae, and the slipper's toe-to-heel length excluding the hand. The body is 25–33% of the slipper length in both captures. Record the on-screen dimensions of the flyswatter and cardboard alongside the slipper in the same view. Approve those reference captures at T116 before comparing against them at T117. Verify that the crosshair stays visible with each resting weapon in both viewports. Capture the slipper grip, diagonal strike and recovery.
+2. **Grounded scurry.** In each mode, record a run-and-turn on a floor, countertop and wall, including a turn near an edge. Compare successive frames for acceleration, braking, body turn and acceleration again. Confirm the alternating gait follows speed, planted legs appear to stay on the surface and the idle antennae move. Check route continuity in the other rooms and confirm the Hell Mode warning, wing opening and flight using V2.
+3. **Live aim and weapon parity.** With each weapon, start a swing just off an in-range target and aim onto it before contact. Repeat with the aim moving off target and with a target moving out of range before contact. Confirm a hit, then misses where no other target qualifies. Use the same controlled aim and target positions for all weapons. On touch, finish the tap and start a right-side swipe during windup. Trying to drag the original tap is a look gesture.
+4. **Pause and round boundary.** Pause before contact and check the pose and counters while paused. Resume and confirm one outcome after the remaining windup. In separate controlled runs, use one late update that spans both the scheduled contact and expiry with contacts at 59,980 ms, 60,000 ms, and 60,020 ms of active play. At 59,980 ms, verify one outcome in the final stats, one visible frame showing the contact pose and outcome before the results screen, and one outcome sound when enabled. At 60,000 ms and 60,020 ms, expect a canceled swing and results without contact feedback. Verify one game-over transition at 60,000 ms in all three cases. Repeat the core timing checks in the headless round tests and confirm replay accepts the first swing.
+5. **Feedback and budgets.** Run the Swing Response procedure below. Profile production Normal and Hell scenes with revised roaches, a swing and its effects. Compare the results to the existing frame, load and asset limits.
+
+### V10 60-Second Countdown (SC-014)
+
+1. Run V1 in Normal and repeat the timer checks in Hell. On desktop and on a landscape phone, verify that a fresh round and a replay both start at `01:00`. Begin timing when play becomes active.
+2. In a continuous run, verify results appear once after 60 seconds of active play. With sound enabled, check that the first final-ten-seconds warning occurs at `00:10` when that second is observed.
+3. In a second run, pause partway through and wait several seconds. Verify the displayed time is frozen. Resume and confirm the countdown expires after a total of 60 active seconds, plus the paused interval in wall-clock time.
+4. Use the slow-frame release check below and the headless timer and round suites to verify that a tick crossing zero clamps there, emits one result and leaves replay ready to start from `01:00`.
+
 ## Automated Tests
 
 ```bash
@@ -158,7 +175,7 @@ With npm use `npm test -- tests/core`, `npm test -- tests/assets/asset-contract.
 ## Release edge cases
 
 - Deny access to browser storage before opening the game. Confirm a round can start, finish and replay, and sound and language can be changed without an error. Restore storage and use a new page for persistence checks.
-- With visible-tab CPU throttling or a deliberate slow frame, time an uninterrupted round. Verify elapsed active play counts toward the 90 seconds and the game reaches results once. Separately verify tab blur pauses the clock.
+- With visible-tab CPU throttling or a deliberate slow frame, time an uninterrupted round. Verify the countdown uses 60 seconds of elapsed active play and the game reaches results once. Separately verify tab blur pauses the clock.
 - Complete a round and return to the menu. Change room, mode and weapon, then start. Replay from those results and verify it retains the new selections with reset score, spawns and timer.
 - Tab through radio groups and menu actions and use the arrow keys to change radio selections. From Pause, Game Over and the trophy cabinet verify keyboard focus remains within the active dialog and its actions work. Confirm the menu and dialogs scroll to all their actions in short landscape.
 - The ad slots start hidden. In DevTools, temporarily remove their `hidden` attributes and insert inert text or blocks. Verify the slots reserve space at the upper and lower edges during the menu and results breaks, leave the canvas dimensions intact and allow all controls to be reached. Check that oversized content is clipped and the slots stay hidden during gameplay, pause, loading and the trophy or orientation prompts.
@@ -185,9 +202,9 @@ With npm use `npm test -- tests/core`, `npm test -- tests/assets/asset-contract.
 
 ### Swing Response (SC-006)
 
-1. On desktop and on a mid-range phone, enable sound and use synchronized video and audio to capture the press or tap, the first visible frame of the swing and the onset of the outcome sound. Record the device, browser and capture resolution in time.
-2. Measure at least 20 accepted swings for each outcome on each device. Calculate the 95th percentile separately for hit, near-miss and empty miss, and separately for input-to-visual and input-to-audio delay. Use the measured end-to-end delays, including display and audio output.
-3. Each reported 95th percentile must be at most 100 ms. Confirm the expected outcome cue plays once using V1 and V8.
+1. On desktop and a mid-range phone, enable sound and use synchronized video and audio. Mark accepted input (click or touch release), first visible swing frame, visible contact pose, visual outcome and audible outcome onset. Record device, browser and capture resolution in time.
+2. Measure at least 20 accepted swings for each outcome on each device. For each outcome, report input-to-visible-swing and contact-to-audio p95. Both measures must be at most 100 ms. Also report the observed input-to-contact interval against the initial playtest target of about 100 ms.
+3. Confirm the visual outcome appears on the contact frame, including the distinct empty-miss cue, and exactly one outcome sound is audible with audio enabled. Record any missing physical capture as pending.
 
 ### Build, Download and Frame Rate
 
@@ -203,6 +220,48 @@ Verify the emitted JavaScript totals less than 200 KB gzipped. The asset suite c
 3. Repeat the frame rate capture on a mid-range physical phone using remote debugging and verify at least 55 fps. Record the room, mode, device and browser with the readings.
 
 ## Current Validation Record
+
+### Gameplay feel and countdown update (2026-11-23)
+
+- The Normal room audit loaded the exported GLBs and found a supported crawl route from all 36 spawn markers: 11 in Kitchen, 12 in Living Room, and 13 in Bedroom. Four added waypoints restored routes on the Living Room shelves and table and the Bedroom rug. The Normal Chrome capture covered acceleration, braking, turning, and acceleration again on the Kitchen floor, counter, and wall, plus the Living Room shelf near its side panel.
+- Normal mode in desktop Chrome reached results after 60.073 s uninterrupted and 63.079 s with a 3.049 s pause. Both runs started and replayed at `01:00`, emitted one result at zero, and triggered the first warning cue at `00:10` with sound enabled.
+- Desktop Chrome also tested Normal live aim and a mid-swing pause with the original slipper GLB. A deliberate 450 ms main-thread stall crossed the round deadline from `00:01` and produced one result at `00:00`. Switching tabs froze the timer until explicit Resume.
+- Hell mode in desktop Chrome measured 60.042 s of active play during a pause and resume run, with one result, a warning cue at `00:10`, and replay at `01:00`. A controlled browser probe showed both wings held open through the 1.500 s preflight, a 2.000 s curved flight, and 250 base points for a flying hit at the 100 ms contact beat. The round suite also verified one replacement per completed flight.
+- In the late-frame Hell regression, one 7,000 ms update and updates of 6,500 ms, 350 ms, and 150 ms produced the same recycling and swing result. The first flyers reached the player at 6,500 ms, returned at 6,850 ms, and one replacement was hit at 7,100 ms.
+- A controlled Chrome fixture verified live aim, pause during windup, and the round-end cases. Contact at 59,980 ms displayed its pose and cue for one frame before results. Contacts at 60,000 ms and 60,020 ms canceled. A rotation-triggered expiry retained the final contact and its sound cue until the first landscape frame, then displayed results on the following frame.
+- Controlled Chrome gameplay produced the same hit, near-miss, and empty-miss outcomes for the same aim and target positions with all three weapons. Each case produced its cue at 100 ms and one audio request.
+- Landscape touch emulation verified that a swipe during windup changed a predicted miss into a hit. Rotation to portrait at 35 ms froze the pose, clock, and counters. Returning to landscape resumed automatically and resolved the swing once after the remaining 65 ms. A late swipe left the outcome unchanged. Physical touch, synchronized audio/video delay, and mid-range phone frame rate remain open.
+- The final run on 2026-11-24 passed 162 tests across 12 files with `pnpm test --coverage`, including 18 asset contract tests and the size and geometry limits for all three room GLBs. V8 reported 100% branch coverage for the headless core and i18n. The production build passed with 196,456 bytes of gzipped JavaScript and Vite's chunk-size advisory.
+
+#### V9 weapon calibration
+
+The Kitchen fixture places the cockroach at ground contact `(-0.45, 0.937202, 0.55)` m, facing +X. The camera at `(-0.45, 1.360002, 1.15)` aims at body center `(-0.45, 0.960002, 0.55)`. The measured resting shell-to-slipper ratios were 29.21% and 28.52% at desktop and landscape sizes, respectively. The reticle remained clear for all three resting weapons in both sizes. At 100 ms, all three poses were within 1.81% of viewport height from reticle center.
+
+| Weapon | Projected length at 1280 × 720 | Projected length at 844 × 390 |
+|---|---:|---:|
+| Slipper | [409.14 px](reference/weapon-calibration/slipper-1280x720.png) | [226.96 px](reference/weapon-calibration/slipper-844x390.png) |
+| Flyswatter | [451.84 px](reference/weapon-calibration/flyswatter-1280x720.png) | [250.37 px](reference/weapon-calibration/flyswatter-844x390.png) |
+| Cardboard | [376.24 px](reference/weapon-calibration/cardboard-1280x720.png) | [206.84 px](reference/weapon-calibration/cardboard-844x390.png) |
+
+The [measurement record](reference/weapon-calibration/measurements.json) contains the projected endpoints and camera pose for every capture. The user approved the four flyswatter and cardboard captures above as the T117 comparison references on 2026-11-24.
+
+T117 reproduced all six resting captures byte for byte and matched the projected measurements in both viewports. It also captured the slipper [grip](reference/weapon-calibration/slipper-1280x720.png), [contact at 100 ms](reference/weapon-calibration/slipper-contact-1280x720.png), and [recovery at 245 ms](reference/weapon-calibration/slipper-recovery-1280x720.png). All nine Chrome gameplay parity cases passed on a fresh run.
+
+#### Production desktop profiling
+
+Headless Chrome 157 used the production bundle, a fresh profile for each run, the Intel UHD Graphics Direct3D 11 renderer, and a 1280 × 720 viewport. Touch input emulation selected the menus and sent swings. Draw totals include the world and weapon passes. Each run collected more than ten seconds of gameplay with repeated strikes. The Hell samples include the preflight interval. The frame rate is measured from desktop animation-frame timestamps.
+
+| Room | Cold transfer | Normal max draws / triangles | Hell max draws / triangles |
+|---|---:|---:|---:|
+| Kitchen | 1,829,142 bytes | 17 / 13,072 | 28 / 16,768 |
+| Living Room | 2,006,030 bytes | 20 / 13,662 | 30 / 17,022 |
+| Bedroom | 2,033,218 bytes | 16 / 13,534 | 27 / 17,230 |
+
+All six runs on the build with the late-frame Hell fix recorded a median of about 164 fps, a p95 frame interval of at most 6.4 ms, and zero page exceptions. The mobile performance target still requires a mid-range physical phone.
+
+### Pre-increment verification
+
+The following records describe the 90-second baseline before this update.
 
 The isolated Windows worktree was verified with Chrome 157 and Chrome Android-device emulation. Chrome runs covered V1–V8 across the implementation, including a full 90-second Normal round. The V6 near-miss badge and some result and failure cases used development fixtures. The browser also reached results and replayed with storage access denied. Asset and headless checks passed with 131 tests across 12 suites and 100% branch coverage for the configured Core and i18n modules. Current Chrome was also used to confirm cancellation and model loading with `AbortSignal.throwIfAborted` unavailable, and to exercise the legacy Web Audio positioning fallback.
 

@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Thiết kế và xây dựng tựa game 3D FPS arcade chạy trên trình duyệt, người chơi cầm dép lê (hoặc đồ vật khác) săn và đập gián trong nhà trong 90 giây, hai chế độ chơi, 3 map, song ngữ Việt–Anh, hướng tới gắn quảng cáo web."
+**Input**: Thiết kế và xây dựng tựa game 3D FPS arcade chạy trên trình duyệt, người chơi cầm dép lê (hoặc đồ vật khác) săn và đập gián trong nhà trong 60 giây, hai chế độ chơi, 3 map, song ngữ Việt–Anh, hướng tới gắn quảng cáo web.
 
 ## Clarifications
 
@@ -15,24 +15,38 @@
 - Q: What counts as a "miss" — swinging at empty space or only close-range failures? → A: Every swing that does not hit a cockroach counts as a miss, including swinging at empty space. Misses reset combo, lower accuracy, and count against the "Perfect Aim" achievement.
 - Q: Should the game enforce landscape orientation on mobile, or support both? → A: Landscape only. If the device is in portrait, display a "Rotate your device" prompt and do not start gameplay until landscape is detected.
 
+### Session 2026-11-23
+
+- Approved tuning both presentation and gameplay to match the feel of the workspace reference video `sample/Smash 'Em All (cut).mp4`. The scope covers the cockroach model, grounded movement, the apparent size of all three weapons, and the first-person slipper swing.
+- The player may continue aiming during the swing. Each weapon resolves the attack at its contact beat using the current aim and cockroach positions. The approved starting point for playtesting is contact at approximately 100 ms into the existing 300 ms swing.
+- The 2026-11-21 miss definition applies to resolved swings. A swing canceled at round end before contact is excluded from the results.
+- Every round uses a 60-second countdown in both Normal and Hell, including replays.
+- The player sees the outcome of a resolved contact before the results screen even when contact and expiry occur between rendered frames. Contact must precede expiry to count.
+- The approved Kitchen calibration view uses a camera 0.60 m horizontally and 0.40 m above the center of a stationary, broadside cockroach. The two reference viewports are 1280 × 720 and 844 × 390.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Quick Stress-Relief Round (Priority: P1)
 
-A casual player opens the game in their browser, picks a room and a weapon, and jumps into a 90-second round of cockroach smashing. They swing their slipper at crawling cockroaches on floors, countertops, and walls, racking up points and combos. When time's up, they see their score, rank, and stats — and immediately hit "Play Again."
+A casual player opens the game in their browser, picks a room and a weapon, and jumps into a 60-second round of cockroach smashing. They swing their slipper at crawling cockroaches on floors, countertops, and walls, racking up points and combos. When time's up, they see their score, rank, and stats — and immediately hit "Play Again."
 
-**Why this priority**: This is the core game loop. Without a satisfying 90-second smash-and-score experience, nothing else matters. It must feel fun, responsive, and rewarding on the very first play.
+**Why this priority**: The 60-second smash-and-score round is the core game loop. It must feel fun, responsive, and rewarding on the first play.
 
-**Independent Test**: Can be fully tested by launching the game, selecting any map/weapon/mode, playing one full 90-second round, and verifying the score screen appears with correct stats. Delivers the complete core value proposition.
+**Independent Test**: Launch the game, select any map, weapon, and mode, play one full 60-second round, and verify that the score screen appears with the correct stats.
 
 **Acceptance Scenarios**:
 
-1. **Given** the player is on the start screen, **When** they select a map, weapon, and Normal mode and press "Start", **Then** a 90-second countdown begins and cockroaches appear crawling on various surfaces in the selected room.
-2. **Given** the player is in a round, **When** they aim at a cockroach and swing their weapon, **Then** the cockroach is eliminated with a satisfying visual/audio feedback and points are added to the score.
+1. **Given** the player is on the start screen, **When** they select a map, weapon, and mode and press "Start", **Then** the countdown starts at 1:00 and cockroaches appear crawling on various surfaces in the selected room.
+2. **Given** the player starts a swing, **When** a cockroach is within the hit area and range of the current crosshair at contact, **Then** the cockroach is eliminated, points and combo update, and impact feedback plays.
 3. **Given** the player hits multiple cockroaches within 2 seconds of each other, **When** each consecutive hit lands, **Then** the combo multiplier increases (x2, x3, x4...) and the multiplied points are displayed.
 4. **Given** the combo timer is active, **When** the player misses a swing or 2 seconds pass without a hit, **Then** the combo resets to x1.
 5. **Given** the timer reaches 0:00, **When** the round ends, **Then** the game over screen shows total score, rank (S/A/B/C), kill count, highest combo, and accuracy.
-6. **Given** the game over screen is displayed, **When** the player presses "Play Again", **Then** a new round begins immediately with the same settings.
+6. **Given** the game over screen is displayed, **When** the player presses "Play Again", **Then** a new round begins immediately with the same settings and a fresh 60-second countdown.
+7. **Given** a cockroach is crawling on a floor, countertop, or wall, **When** it scurries and changes direction, **Then** it accelerates over a short stretch, visibly slows at the turn, turns its body, and accelerates again. Its alternating steps follow its speed, with its planted feet staying on the surface even near an edge.
+8. **Given** a cockroach is outside the hit area when the player starts a swing, **When** the player moves the crosshair onto it and it is in range at contact, **Then** the swing hits. If a cockroach leaves the hit area or range before contact and no other cockroach qualifies, the swing misses.
+9. **Given** a swing is in progress before contact, **When** the round is paused and resumed, **Then** the swing pose and time to contact are preserved and the swing resolves once after resuming.
+10. **Given** a swing is still before contact when the round ends, **When** the results appear, **Then** the unfinished swing contributes neither a hit nor a miss and produces no outcome feedback.
+11. **Given** a cockroach is in clear view on a countertop, **When** the player follows it as it starts and stops, **Then** they can see its flattened, tapered, dark reddish-brown body, six splayed legs, two long antennae that move subtly at rest, and wings tucked against the body while crawling.
 
 ---
 
@@ -46,9 +60,9 @@ A player seeking a tougher challenge selects "Hell Mode." Cockroach density is h
 
 **Acceptance Scenarios**:
 
-1. **Given** the player selects Hell Mode, **When** a cockroach prepares to fly, **Then** a visible warning alert appears on screen 1.5 seconds before takeoff.
+1. **Given** the player selects Hell Mode, **When** a cockroach prepares to fly, **Then** its wings visibly open and a warning alert appears on screen 1.5 seconds before takeoff.
 2. **Given** a cockroach is in flight, **When** it is heading toward the player, **Then** it follows a curved trajectory with increasing speed and slight randomness.
-3. **Given** the player swings at a flying cockroach, **When** the hit connects, **Then** the cockroach is eliminated and awards bonus points (higher than a crawling kill).
+3. **Given** the player swings at a flying cockroach, **When** it is within the hit area and range of the current crosshair at contact, **Then** the cockroach is eliminated and awards bonus points (higher than a crawling kill).
 4. **Given** a flying cockroach reaches the player without being hit, **When** it arrives, **Then** it despawns and reappears at a new location (no damage to the player — there is no health system).
 5. **Given** the player completes a Hell Mode round, **When** scoring is calculated, **Then** rank thresholds are adjusted to reflect the higher difficulty (higher point thresholds for each rank).
 
@@ -58,7 +72,7 @@ A player seeking a tougher challenge selects "Hell Mode." Cockroach density is h
 
 A returning player wants variety. They switch between three different rooms — a kitchen, a living room, and a bedroom — each with its own layout, furniture, and cockroach hiding spots. All rooms are available from the start with no unlocking required.
 
-**Why this priority**: Three maps at launch provide immediate variety and replay value. Without map diversity, the 90-second loop risks feeling repetitive after a few rounds.
+**Why this priority**: Three maps at launch provide variety across repeat plays of the 60-second round.
 
 **Independent Test**: Can be tested by playing one round in each of the three maps and verifying each has a unique environment, different cockroach spawn positions, and correct navigation boundaries.
 
@@ -85,6 +99,9 @@ A player wants to try different "weapons." They choose between a slipper, a flys
 1. **Given** the player is on the start screen, **When** they view the weapon selector, **Then** all three weapons (slipper, flyswatter, cardboard) are available and visually distinguishable.
 2. **Given** the player selects any weapon, **When** the round starts, **Then** the selected weapon is visible at the bottom-right of the screen in first-person view.
 3. **Given** the player swings any weapon, **When** the swing animation plays, **Then** the animation is unique to that weapon but the hit area, range, and timing are identical across all weapons.
+4. **Given** the player aims at a stationary cockroach from the Kitchen calibration view, **When** the slipper is at rest, **Then** the cockroach's body appears 25–33% as long as the slipper on screen.
+5. **Given** the player equips the flyswatter or cardboard on desktop or mobile landscape, **When** it is held at rest, **Then** its apparent size is balanced against the slipper reference for its own shape, and the crosshair remains visible.
+6. **Given** the player equips the slipper, **When** they swing, **Then** the visible right hand holds the slipper at the lower right, rotates the wrist as it strikes diagonally toward the crosshair, and quickly returns to its resting pose.
 
 ---
 
@@ -101,7 +118,7 @@ A player opens the game on their phone. They see a virtual joystick on the left 
 1. **Given** the player opens the game on a touch device, **When** the game detects touch input, **Then** a semi-transparent virtual joystick appears on the lower-left of the screen.
 2. **Given** the joystick is visible, **When** the player drags it in any direction, **Then** the character moves smoothly in that direction.
 3. **Given** the player touches and drags on the right side of the screen, **When** they swipe in any direction, **Then** the camera rotates accordingly (look around).
-4. **Given** the player taps anywhere outside the joystick area, **When** the tap is registered, **Then** the weapon swings at whatever is in the crosshair.
+4. **Given** the player taps outside the joystick area to swing, **When** they swipe to adjust their aim before contact, **Then** the swing resolves using the updated crosshair aim at contact.
 5. **Given** the game is running on a mid-range mobile device, **When** gameplay is active with multiple cockroaches, **Then** the game maintains a smooth, playable frame rate.
 
 ---
@@ -160,10 +177,13 @@ A player enjoys the satisfying audio feedback — the smack of a hit, the scurry
 
 ### Edge Cases
 
-- What happens when the player does nothing for the entire 90 seconds? → Timer runs out normally, score is 0, rank is C, possible "pacifist" achievement unlock.
+- What happens when the player does nothing for the entire 60 seconds? → Timer runs out normally, score is 0, rank is C, possible "pacifist" achievement unlock.
 - What happens when all pooled cockroaches are eliminated faster than respawn? → Cockroaches respawn from the pool at spawn points; there should never be an empty room for more than a brief moment.
 - What happens when the player rapidly taps/clicks during the swing lockout? → Additional inputs during the 300ms lockout are ignored; no queuing.
-- What happens on a very slow device where frame rate drops significantly? → Game timer is based on real elapsed time (not frame count), so the round is always exactly 90 seconds regardless of frame rate.
+- What happens when the aim or target changes during the swing? → The current aim and target positions at contact determine the outcome. A target can enter or leave the hit area during the windup.
+- What happens if the game pauses or the round ends before contact? → Pause freezes the pose and timing until play resumes. A pending contact is canceled when the round ends and does not affect score, combo, accuracy, achievements, or outcome feedback.
+- What happens if contact and expiry fall between the same two rendered frames? → If contact precedes expiry, the result counts and the contact pose and outcome appear for one frame before the results screen. The round still ends at 60 seconds of active play. Contact at or after expiry is canceled.
+- What happens on a very slow device where frame rate drops significantly? → The round expires after 60 seconds of elapsed active play, regardless of frame rate. Paused time is excluded.
 - What happens if localStorage is unavailable or full? → Game plays normally but achievements and preferences are not saved; no error shown to the player.
 - What happens when the player rotates their phone mid-game? → If rotated to portrait, the game pauses and displays a "Rotate your device" prompt; gameplay resumes automatically when landscape is restored, with no loss of game state.
 - What happens when the browser tab loses focus during gameplay? → Game automatically pauses and shows the pause overlay.
@@ -173,21 +193,21 @@ A player enjoys the satisfying audio feedback — the smack of a hit, the scurry
 ### Functional Requirements
 
 - **FR-001**: System MUST present a start screen with map selection (3 rooms), mode selection (Normal/Hell), weapon selection (3 weapons), and a prominent Start button.
-- **FR-002**: System MUST run a 90-second countdown timer per round that freezes on pause and triggers game-over at 0.
+- **FR-002**: System MUST start each round and replay with a 60-second countdown in both modes. The countdown MUST measure elapsed active play, freeze while paused, and trigger game over once it reaches 0.
 - **FR-003**: System MUST spawn cockroaches that crawl across multiple surface types (floors, countertops, walls, shelves, furniture) within each room.
-- **FR-004**: System MUST detect weapon-to-cockroach hits based on the player's aim direction when they swing, with a generous detection area to ensure satisfying gameplay.
+- **FR-004**: System MUST resolve each swing once at its contact beat, during active play, using the player's current aim and each cockroach's current position. The player MUST be able to adjust aim until contact. All weapons MUST share the same generous hit area, range, and time to contact.
 - **FR-005**: System MUST award 100 base points for eliminating a crawling cockroach and 250 base points for a flying cockroach.
-- **FR-006**: System MUST track consecutive hits within a 2-second window as a combo, multiplying points by the combo count (x1, x2, x3...), resetting on miss (any swing that does not hit a cockroach, including swinging at empty space) or timeout (2 seconds without a hit).
-- **FR-007**: System MUST enforce a brief lockout after each weapon swing to prevent input spam and create a rhythmic gameplay feel.
+- **FR-006**: System MUST track consecutive hits within a 2-second window as a combo, multiplying points by the combo count (x1, x2, x3...). The combo MUST reset on a resolved miss, including an empty swing, or after 2 seconds without a hit.
+- **FR-007**: System MUST enforce a shared 300 ms swing cycle and lockout from input, ignoring additional swing inputs until the cycle ends.
 - **FR-008**: In Hell Mode, system MUST cause cockroaches to periodically take flight on a curved trajectory toward the player's face, with a visible warning 1.5 seconds before takeoff.
 - **FR-009**: System MUST display an in-game HUD showing: mode badge, countdown timer, current score, combo indicator, kill count, and a crosshair.
-- **FR-010**: System MUST allow the player to pause the game (via Esc key or pause button) which freezes the timer and shows a pause overlay.
-- **FR-011**: System MUST display a game-over screen with: total score, rank (S/A/B/C based on defined thresholds), kills, highest combo, accuracy (hits ÷ total swings, where any swing not hitting a cockroach counts as a miss), personal best comparison, newly unlocked achievements, next rank hint, and replay button.
+- **FR-010**: System MUST allow the player to pause the game (via Esc key or pause button), freeze the timer and any ongoing swing, and show a pause overlay. On resume, the swing MUST continue from the same pose and elapsed swing time.
+- **FR-011**: System MUST display a game-over screen with total score, rank (S/A/B/C based on defined thresholds), kills, highest combo, accuracy (hits ÷ resolved swings), personal best comparison, newly unlocked achievements, next rank hint, and replay button.
 - **FR-012**: System MUST provide first-person movement controls for desktop (keyboard + mouse with pointer capture) and mobile (virtual joystick + swipe + tap). On mobile, the game MUST enforce landscape orientation; if the device is in portrait, a "Rotate your device" / "Xoay điện thoại" prompt MUST be shown and gameplay MUST NOT start until landscape is detected.
 - **FR-013**: System MUST auto-detect the input method (touch vs. mouse/keyboard) on first interaction and display appropriate control schemes.
 - **FR-014**: System MUST prevent the player from walking through room walls and major furniture pieces.
 - **FR-015**: System MUST provide three visually distinct weapons (slipper, flyswatter, cardboard) that the player can freely select, all with identical gameplay performance.
-- **FR-016**: System MUST provide visual and audio feedback on every hit (impact effect, particle burst, screen shake, sound) and on near-misses (crosshair feedback).
+- **FR-016**: At contact, system MUST resolve points and combo and trigger the corresponding feedback. Hits MUST trigger the impact effect, particle burst, and screen shake. Near-misses MUST trigger crosshair feedback. Each resolved swing MUST play one outcome sound when sound is enabled.
 - **FR-017**: System MUST track near-miss events (swings that pass very close to a cockroach without hitting) for the achievement system.
 - **FR-018**: System MUST maintain a trophy cabinet of achievements, viewable from the start screen, showing unlocked achievements in color and locked ones as greyed with hints.
 - **FR-019**: System MUST persist all achievements, personal best scores (per map + mode), and player preferences (language, sound) in local browser storage.
@@ -197,6 +217,11 @@ A player enjoys the satisfying audio feedback — the smack of a hit, the scurry
 - **FR-023**: System MUST render the selected weapon in first-person view at the bottom-right of the screen, slightly bobbing with player movement, without clipping into the environment.
 - **FR-024**: System MUST provide spatial audio positioning for cockroach sounds (crawling/flying), making sounds louder and directional based on proximity and position.
 - **FR-025**: System MUST automatically pause the game when the browser tab loses focus.
+- **FR-026**: Cockroaches MUST have a flattened, tapered, dark reddish-brown body, six splayed legs, and two long antennae within the game's stylized visual direction. Wings MUST lie close to the body while crawling and visibly open before takeoff in Hell Mode.
+- **FR-027**: Crawling cockroaches MUST move in short bursts, slow when changing direction, then accelerate again. The body MUST turn with the travel direction, the legs MUST alternate steps at a cadence that follows travel speed, and the antennae MUST move subtly while stopped. Planted feet MUST appear to stay in contact with the crawling surface, including near edges. This movement change applies to crawling. Hell Mode retains the flight behavior in FR-008.
+- **FR-028**: In the Kitchen calibration view, the cockroach body, measured without its legs and antennae, MUST appear 25–33% as long as the resting slipper, measured without the hand. The flyswatter and cardboard MUST use the slipper as the reference for their apparent scale while accounting for their respective shapes. All three MUST leave the crosshair visible in their resting poses on desktop and mobile landscape.
+- **FR-029**: The first-person slipper swing MUST show the right hand holding the slipper at the lower right, rotating the wrist into a diagonal strike toward the crosshair, then returning quickly to the resting pose. The strike pose MUST align with the contact beat in FR-004.
+- **FR-030**: At round end, any swing awaiting contact MUST be canceled without registering a hit, miss, or near-miss and without changing score, combo, accuracy, achievement progress, or producing outcome feedback.
 
 ### Rank Thresholds
 
@@ -224,9 +249,10 @@ A player enjoys the satisfying audio feedback — the smack of a hit, the scurry
 
 ### Key Entities
 
-- **Round**: A single 90-second gameplay session characterized by a selected map, mode, and weapon. Produces a score, rank, kill count, combo record, and accuracy rate.
-- **Cockroach**: An in-game enemy that spawns at designated points, moves along surfaces or flies toward the player (Hell Mode). Has states: idle, crawling, flying. Can be eliminated by a weapon hit.
+- **Round**: A single session with 60 seconds of active play, a selected map, mode, and weapon. Produces a score, rank, kill count, combo record, and accuracy rate.
+- **Cockroach**: An in-game enemy that spawns at designated points, moves along surfaces or flies toward the player (Hell Mode). Its states are idle, crawling, preparing for flight, and flying. It can be eliminated by a weapon hit.
 - **Weapon**: The player's tool for eliminating cockroaches. Three variants (slipper, flyswatter, cardboard) with identical performance but distinct visual appearance and animations.
+- **Swing**: One timed weapon action with a windup, a contact beat that determines a hit or miss, and a return to the resting pose.
 - **Map/Room**: A 3D environment where gameplay takes place. Three rooms (kitchen, living room, bedroom) each with unique layout, furniture, and cockroach spawn/navigation points.
 - **Combo**: A streak counter that increases with each consecutive hit within a 2-second window, multiplying points earned.
 - **Achievement**: A persistent badge unlocked by meeting specific behavioral conditions during gameplay. Stored locally, displayed in the trophy cabinet.
@@ -241,11 +267,15 @@ A player enjoys the satisfying audio feedback — the smack of a hit, the scurry
 - **SC-003**: The total initial download size for playing one map is under 4 MB, ensuring fast load times on mobile connections.
 - **SC-004**: 90% of first-time players can understand the controls and start playing without any tutorial or instructions.
 - **SC-005**: The average player replays at least 3 rounds in their first session (measured by local round counter — indicates the core loop is engaging).
-- **SC-006**: Every accepted swing gives visual feedback and, when sound is enabled, one outcome sound. For hits, near-misses and empty misses measured separately on desktop and a mid-range phone, the 95th-percentile delay from input to visible feedback and from input to audible feedback is at most 100 ms for each.
+- **SC-006**: On desktop and a mid-range phone, the 95th-percentile delay from accepted input to visible swing onset is at most 100 ms. For hits, near-misses, and empty misses measured separately, the outcome appears on the frame showing the contact pose and, when sound is enabled, produces exactly one outcome sound with a 95th-percentile delay of at most 100 ms from contact to audible feedback. If contact precedes expiry in the same update, verify that a contact frame is shown before the results screen.
 - **SC-007**: All 10 achievements are achievable through natural gameplay without requiring exploits or unnatural behavior.
 - **SC-008**: Language switching updates 100% of visible UI text immediately with no page reload required.
-- **SC-009**: Game state (timer, score, spawns) is fully preserved through pause/resume cycles with no discrepancies.
+- **SC-009**: Game state (timer, score, spawns, swing pose, and time remaining to contact) is preserved through pause/resume cycles. Each interrupted swing resolves at most once.
 - **SC-010**: The game's UI and ad-slot architecture supports future integration of web advertisements at natural break points (start screen, post-game) without requiring structural changes.
+- **SC-011**: In the Kitchen calibration view, the visible cockroach body length is 25–33% of the resting slipper length in both the 1280 × 720 desktop and 844 × 390 landscape viewports. Compare the flyswatter and cardboard with their approved reference captures. Verify that the crosshair is visible with each weapon at rest in both viewports.
+- **SC-012**: Inspect one complete scurry-and-turn sequence on each of a floor, countertop, and wall in both modes. Each sequence shows acceleration, a slowdown and body turn, and acceleration again. Planted feet appear to stay on the surface at turns, including at edges.
+- **SC-013**: For all three weapons, the same aim and target positions at contact produce the same outcome. In a controlled check, aiming onto an in-range cockroach before contact produces a hit and a cockroach leaving the hit area before contact produces a miss if no other target qualifies. Contact at or after expiry produces neither outcome.
+- **SC-014**: In Normal and Hell, verify that a new round and a replay each start at 1:00 and trigger game over exactly once at 60 seconds of active play. In a paused run, verify that time spent paused does not count toward those 60 seconds.
 
 ## Assumptions
 
@@ -258,4 +288,6 @@ A player enjoys the satisfying audio feedback — the smack of a hit, the scurry
 - Audio assets will be sourced from royalty-free libraries; no original music composition or voice acting is required.
 - The game does not need to work offline (no PWA/service worker requirement for v1), though the architecture should not preclude it.
 - The retro/cozy stylized visual aesthetic applies consistently across all three rooms; each room varies in furniture and layout but shares the same artistic direction.
-- Cockroaches have no damage mechanic — they don't harm the player. The only pressure is the 90-second time limit.
+- Cockroaches have no damage mechanic. The 60-second limit provides time pressure.
+- The countertop sequence at 0:06–0:08 in the workspace reference video is the visual calibration point. The body-to-slipper ratio describes on-screen appearance from the player's viewpoint.
+- Approximately 100 ms after swing input is the initial contact timing for playtesting. The contact beat is shared across weapons and falls within the 300 ms cycle.

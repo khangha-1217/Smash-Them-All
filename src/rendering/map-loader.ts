@@ -80,16 +80,35 @@ function boundsFrom(node: Object3D): Aabb {
   return { min: box.min, max: box.max };
 }
 
-function setSupportId(point: SurfacePoint, colliders: readonly Aabb[]): void {
-  if (point.surfaceType === 'floor' || point.surfaceNormal.y <= 0.5) return;
+function setSupportFace(point: SurfacePoint, colliders: readonly Aabb[], room: Aabb): void {
+  const axis = (['x', 'y', 'z'] as const).find(key => Math.abs(point.surfaceNormal[key]) > 0.9999);
+  if (!axis) return;
+  let bounds: Aabb;
+  if (point.surfaceType === 'floor' || point.surfaceType === 'wall') {
+    const boundary = point.surfaceNormal[axis] > 0 ? room.min[axis] : room.max[axis];
+    // Raised rugs have a separate footprint that the room bounds do not describe.
+    const tolerance = point.surfaceType === 'floor' ? 0.001 : SUPPORT_TOLERANCE;
+    if (Math.abs(point.position[axis] - boundary) > tolerance) return;
+    bounds = room;
+  } else {
+    const id = furnitureSupport(point, colliders);
+    if (id < 0) return;
+    point.supportId = id;
+    bounds = colliders[id];
+  }
+  point.supportBounds = { min: { ...bounds.min }, max: { ...bounds.max } };
+  point.supportBounds.min[axis] = point.supportBounds.max[axis] = point.position[axis];
+}
+
+function furnitureSupport(point: SurfacePoint, colliders: readonly Aabb[]): number {
+  if (point.surfaceNormal.y <= 0.5) return -1;
   const { x, y, z } = point.position;
   // Shelves can sit inside furniture bounds, and upholstered surfaces can sit just above them.
-  const supportId = colliders.findIndex(({ min, max }) => (
+  return colliders.findIndex(({ min, max }) => (
     x >= min.x - SUPPORT_TOLERANCE && x <= max.x + SUPPORT_TOLERANCE
     && y >= min.y && y <= max.y + SUPPORT_TOLERANCE
     && z >= min.z - SUPPORT_TOLERANCE && z <= max.z + SUPPORT_TOLERANCE
   ));
-  if (supportId !== -1) point.supportId = supportId;
 }
 
 export async function loadMap(
@@ -131,8 +150,8 @@ export async function loadMap(
     if (!playerStart || !roomBounds || !spawnPoints.length || !waypoints.length) {
       throw new Error(`Incomplete map metadata for ${mapId}`);
     }
-    for (const point of spawnPoints) setSupportId(point, colliders);
-    for (const point of waypoints) setSupportId(point, colliders);
+    for (const point of spawnPoints) setSupportFace(point, colliders, roomBounds);
+    for (const point of waypoints) setSupportFace(point, colliders, roomBounds);
     return { scene, data: { id: mapId, spawnPoints, waypoints, playerStart, colliders, roomBounds } };
   } catch (error) {
     disposeModel(scene);

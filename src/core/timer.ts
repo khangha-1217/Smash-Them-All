@@ -1,10 +1,10 @@
 import type { EventEmitter } from '../utils/event-emitter';
+import { ROUND_DURATION_MS } from './types';
 
-const DURATION_MS = 90_000;
 const WARNING_SECONDS = 10;
 
 export class Timer {
-  private remainingMs = DURATION_MS;
+  private remainingMs = ROUND_DURATION_MS;
   private phase: 'idle' | 'running' | 'paused' = 'idle';
 
   constructor(
@@ -17,11 +17,11 @@ export class Timer {
   }
 
   get elapsedMs(): number {
-    return DURATION_MS - this.remainingMs;
+    return ROUND_DURATION_MS - this.remainingMs;
   }
 
   start(): void {
-    this.remainingMs = DURATION_MS;
+    this.remainingMs = ROUND_DURATION_MS;
     this.phase = 'running';
     this.events.emit('TIMER_TICK', { timeRemaining: this.timeRemaining });
   }
@@ -35,7 +35,7 @@ export class Timer {
   }
 
   reset(): void {
-    this.remainingMs = DURATION_MS;
+    this.remainingMs = ROUND_DURATION_MS;
     this.phase = 'idle';
   }
 

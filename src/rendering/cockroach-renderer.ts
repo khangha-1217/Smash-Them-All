@@ -19,7 +19,9 @@ interface RoachView {
   orientation: Quaternion;
 }
 
-const MODEL_FOOT_OFFSET = 0.006;
+const MODEL_SCALE = 3.8;
+const MODEL_FOOT_OFFSET = 0.006 * MODEL_SCALE;
+const CRAWL_REFERENCE_SPEED = 0.2; // Ground speed in m/s at the clip's authored cadence.
 const FLOOR_NORMAL = new Vector3(0, 1, 0);
 const CRAWL_FORWARD = new Vector3(0, 0, -1);
 
@@ -31,6 +33,7 @@ export class CockroachRenderer {
   private readonly right = new Vector3();
   private readonly back = new Vector3();
   private readonly move = new Vector3();
+  private readonly supportUp = new Vector3();
   private readonly tilt = new Euler();
 
   constructor(private readonly model: GLTF, count: number, private readonly spawns: SurfacePoint[]) {
@@ -45,6 +48,7 @@ export class CockroachRenderer {
     for (let index = 0; index < count; index++) {
       const root = new Group();
       const mesh = clone(model.scene);
+      mesh.scale.setScalar(MODEL_SCALE);
       root.add(mesh);
       root.visible = false;
       this.group.add(root);
@@ -70,8 +74,10 @@ export class CockroachRenderer {
 
     const start = this.spawns.find(point => point.position.x === position.x
       && point.position.y === position.y && point.position.z === position.z);
-    view.facing.copy(CRAWL_FORWARD);
-    this.setPose(view, position, start?.surfaceNormal ?? FLOOR_NORMAL);
+    const normal = start?.surfaceNormal ?? FLOOR_NORMAL;
+    if (Math.abs(normal.z) < 0.9) view.facing.set(0, 0, 1);
+    else view.facing.set(1, 0, 0);
+    this.setPose(view, position, normal);
     view.root.position.copy(view.position);
     view.root.quaternion.copy(view.orientation);
     view.root.visible = true;
@@ -80,7 +86,7 @@ export class CockroachRenderer {
     this.byId.set(cockroachId, view);
   }
 
-  moveTo({ cockroachId, position, rotation, state }: GameEvents['COCKROACH_MOVED']): void {
+  moveTo({ cockroachId, position, rotation, state, groundFacing, speed }: GameEvents['COCKROACH_MOVED']): void {
     const view = this.byId.get(cockroachId);
     if (!view) return;
     if (state === 'flying') {
@@ -100,12 +106,15 @@ export class CockroachRenderer {
     }
 
     this.tilt.set(rotation.x, rotation.y, rotation.z);
-    view.up.copy(FLOOR_NORMAL).applyEuler(this.tilt);
-    this.move.set(position.x, position.y, position.z).addScaledVector(view.up, MODEL_FOOT_OFFSET)
-      .sub(view.position).projectOnPlane(view.up);
-    if (this.move.lengthSq() > 1e-8) view.facing.copy(this.move).normalize();
-    this.setPose(view, position, view.up);
+    this.supportUp.copy(FLOOR_NORMAL).applyEuler(this.tilt);
+    const changedSupportPlane = !view.up.equals(this.supportUp) || view.active === view.actions.flying;
+    view.facing.copy(groundFacing);
+    this.setPose(view, position, this.supportUp);
+    // A tick can cross multiple legs. Only the latest ground anchor is guaranteed to be supported.
+    view.root.position.copy(view.position);
+    if (changedSupportPlane) view.root.quaternion.copy(view.orientation);
     this.animate(view, state);
+    if (state === 'crawling') view.active.setEffectiveTimeScale(speed / CRAWL_REFERENCE_SPEED);
   }
 
   despawn({ cockroachId }: GameEvents['COCKROACH_DESPAWNED']): void {
@@ -120,7 +129,6 @@ export class CockroachRenderer {
   update(seconds: number): void {
     const blend = 1 - Math.exp(-35 * seconds);
     for (const view of this.byId.values()) {
-      view.root.position.lerp(view.position, blend);
       view.root.quaternion.slerp(view.orientation, blend);
       view.mixer.update(seconds);
     }

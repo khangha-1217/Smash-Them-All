@@ -99,6 +99,10 @@ export class Vfx {
     this.flash('near-miss');
   }
 
+  miss(): void {
+    this.flash('miss');
+  }
+
   localize(): void {
     for (const popup of this.popups) this.localizePopup(popup);
   }
@@ -161,7 +165,7 @@ export class Vfx {
     }
   }
 
-  private flash(feedback: 'hit' | 'near-miss'): void {
+  private flash(feedback: 'hit' | 'near-miss' | 'miss'): void {
     // Reassign the attribute after layout so consecutive outcomes restart the animation.
     delete this.reticle.dataset.feedback;
     void this.reticle.offsetWidth;

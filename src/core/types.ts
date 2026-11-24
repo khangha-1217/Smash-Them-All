@@ -17,6 +17,8 @@ export type Rank = 'S' | 'A' | 'B' | 'C';
 export type Language = 'vi' | 'en';
 export type GameState = 'MENU' | 'LOADING' | 'READY' | 'PLAYING' | 'PAUSED' | 'GAME_OVER';
 
+export const ROUND_DURATION_MS = 60_000;
+
 export interface RoundConfig {
   mapId: MapId;
   mode: GameMode;
@@ -24,7 +26,7 @@ export interface RoundConfig {
 }
 
 export interface Round extends RoundConfig {
-  // Seconds remaining, based on real elapsed time in the 90-second round.
+  // Seconds remaining on the active round clock.
   timeRemaining: number;
   // The score and counters are integers.
   score: number;
@@ -76,8 +78,10 @@ export interface Cockroach {
   position: Vec3;
   surfaceType: string;
   surfaceNormal: Vec3;
+  // Unit tangent to the current support, retained during a turn hold.
+  groundFacing: Vec3;
   targetWaypoint: Vec3 | null;
-  // Meters per second, 0.5–1.2 while crawling.
+  // Instantaneous ground speed in meters per second.
   speed: number;
   // 0.06 m while crawling and 0.078 m while flying (1.3 times larger).
   hitboxRadius: number;
@@ -86,7 +90,17 @@ export interface Cockroach {
   flightProgress: number;
 }
 
+export const SWING_CONTACT_MS = 100;
 export const SWING_DURATION_MS = 300;
+
+export interface ActiveSwing {
+  startedAt: number;
+  contactAt: number;
+  availableAt: number;
+  phase: 'windup' | 'recovery';
+  position: Vec3;
+  direction: Vec3;
+}
 
 export interface Weapon {
   id: WeaponId;
@@ -144,6 +158,8 @@ export interface SurfacePoint {
   surfaceNormal: Vec3;
   // Map-local ID of the collider that supports this point, when one is known.
   supportId?: number;
+  // Axis-aligned supporting face, flat along its normal axis.
+  supportBounds?: Aabb;
 }
 
 export interface Aabb {

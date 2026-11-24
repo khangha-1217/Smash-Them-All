@@ -36,19 +36,21 @@ def tapered_joint(g, points, radii, color):
 
 
 def wing(g, side):
-    # The raised center and split amber tips distinguish the two wings when closed.
-    outline = [(0.0010, -.0208, .0078), (.0049, -.0183, .0076), (.0078, -.0081, .0076),
-               (.0056, .0022, .0084), (.0021, .0033, .0089), (.00037, -.0059, .0093)]
-    if side < 0:
-        outline.reverse()
+    # Each folded forewing has a long ridge and a tapered mahogany rim.
+    outline = [(.00045, -.0213, .0066), (.0046, -.0196, .0067), (.0081, -.011, .0067),
+               (.0085, -.002, .0071), (.0054, .0040, .0081), (.00030, .0036, .0082)]
     brim = [(side * x, y, z) for x, y, z in outline]
+    facets = ["8f462c", "ac5531", "bb6138", "cb7847", "b76138", "91462f"]
+    first = len(g.vertices)
+    crown = (side * .0031, -.0026, .0100)
     lower = [(x, y, z - .0009) for x, y, z in brim]
-    rim_faces = [(i, (i + 1) % 6, (i + 1) % 6 + 6, i + 6) for i in range(6)]
-    g.add(lower + brim, rim_faces + [(5, 4, 3, 2, 1, 0)], "63392e")
-    center = (side * .0039, -.0071, .0108)
-    first = len(g.vertices) - 12
-    for i, color in enumerate(("b9703e", "cc8a49", "c38342", "df9d57", "e3a963", "c38249")):
-        g.add([brim[i], brim[(i + 1) % 6], center], [(0, 1, 2)], color)
+    for i, color in enumerate(facets):
+        j = (i + 1) % len(brim)
+        tri = (0, 1, 2) if side > 0 else (2, 1, 0)
+        quad = (0, 1, 2, 3) if side > 0 else (3, 2, 1, 0)
+        g.add([lower[i], lower[j], brim[j], brim[i]], [quad], "653729")
+        g.add([brim[i], brim[j], crown], [tri], color)
+    g.add(lower, [tuple(reversed(range(6))) if side > 0 else tuple(range(6))], "63332b")
     return range(first, len(g.vertices))
 
 
@@ -56,36 +58,38 @@ def geometry():
     g = Geometry()
     groups = {"body": []}
     pivots = {"body": (0, 0, 0)}
-    groups["body"].extend(shell(g, 0, -.0095, .0075, .0125,
-                                ((.0027, .63), (.0055, 1), (.0083, .68)), "744437"))
-    groups["body"].extend(shell(g, 0, .0042, .0065, .0075,
-                                ((.0040, .84), (.0096, 1)), "9b5941"))
+    groups["body"].extend(shell(g, 0, -.0095, .0083, .0125,
+                                ((.0027, .63), (.0055, 1), (.0078, .68)), "683d33"))
+    groups["body"].extend(shell(g, 0, .0042, .0077, .0070,
+                                ((.0035, .82), (.0074, 1), (.0097, .68)), "ab5838"))
     groups["body"].extend(shell(g, 0, .0124, .0047, .0056,
-                                ((.0046, .8), (.0090, 1)), "794839"))
+                                ((.0037, .80), (.0079, 1)), "784235"))
 
     for side, suffix in ((-1, "l"), (1, "r")):
         name = f"wing_{suffix}"
         pivots[name] = (side * .0022, .0022, .0081)
         groups[name] = wing(g, side)
         for number, (y, elbow_y, toe_y, width) in enumerate(
-            ((.0067, .009, .0118, .0116), (-.001, -.0030, -.0062, .0132), (-.0087, -.012, -.0182, .0118)),
+            ((.0067, .0113, .0089, .0129), (-.001, .0008, -.0055, .0152), (-.0087, -.0082, -.0170, .0145)),
             start=1,
         ):
             name = f"leg_{number}_{suffix}"
             pivot = (side * .0041, y, .0053)
             pivots[name] = pivot
             groups[name] = tapered_joint(g,
-                [pivot, (side * width * .69, elbow_y, .0056), (side * width, toe_y, .00065)],
-                [.00115, .00081, .00030], "a77854")
+                [pivot, (side * width * .72, elbow_y, .0051),
+                 (side * width, toe_y, .0003), (side * (width + .0015), toe_y - .0023, .0002)],
+                [.0010, .00082, .00032, .00016], "ae7651")
 
         name = f"antenna_{suffix}"
         pivot = (side * .0029, .0158, .0072)
         pivots[name] = pivot
         groups[name] = tapered_joint(g,
-            [pivot, (side * .0058, .0250, .0128), (side * .0098, .0352, .0112)],
-            [.00073, .00050, .00016], "d2a66e")
-        groups["body"].extend(g.tube((side * .0036, .0138, .0087),
-                                     (side * .0039, .0148, .0097), .00145, "342a2b", 3, .001))
+            [pivot, (side * .0047, .0221, .0108),
+             (side * .0087, .0305, .0127), (side * .0133, .0370, .0097)],
+            [.00070, .00052, .00033, .00012], "c29163")
+        groups["body"].extend(g.tube((side * .0036, .0138, .0078),
+                                     (side * .0039, .0148, .0092), .00145, "342a2b", 3, .001))
     # Center the asset on the body for placement and rotation in the game.
     def center(point):
         x, y, z = point
@@ -122,14 +126,13 @@ def rig(mesh, pivots, groups):
 
 def animate(roach):
     bones = roach.pose.bones
-    idle = {bones["body"]: [(1, (0, 0, 0)), (20, (3, 0, 0)), (40, (0, 0, 0))]}
-    crawl = {bones["body"]: [(1, (0, 0, 0)), (7, (0, 0, 4)),
-                             (13, (0, 0, 0)), (19, (0, 0, -4)), (25, (0, 0, 0))]}
+    idle = {}
+    crawl = {}
     fly = {bones["body"]: [(1, (-12, 0, 0)), (7, (-6, 0, 0)), (13, (-12, 0, 0))]}
     for side, suffix in ((-1, "l"), (1, "r")):
         antenna = bones[f"antenna_{suffix}"]
-        idle[antenna] = [(1, (0, 0, 0)), (20, (13, 0, side * 17)), (40, (0, 0, 0))]
-        crawl[antenna] = [(1, (0, 0, 0)), (13, (-12, 0, side * 10)), (25, (0, 0, 0))]
+        idle[antenna] = [(1, (0, 0, 0)), (20, (5, 0, side * 7)), (40, (0, 0, 0))]
+        crawl[antenna] = [(1, (0, 0, 0)), (13, (-4, 0, side * 6)), (25, (0, 0, 0))]
         fly[antenna] = [(1, (-14, 0, 0)), (7, (-22, 0, side * 13)), (13, (-14, 0, 0))]
         wing_bone = bones[f"wing_{suffix}"]
         fly[wing_bone] = [
@@ -140,10 +143,11 @@ def animate(roach):
         for number in range(1, 4):
             leg = bones[f"leg_{number}_{suffix}"]
             gait = side * (-1 if number % 2 else 1)
+            sweep = gait * side * 17
             crawl[leg] = [
-                (1, (0, 0, -gait * 18)), (7, (0, -side * 19 if gait > 0 else 0, 0)),
-                (13, (0, 0, gait * 18)), (19, (0, -side * 19 if gait < 0 else 0, 0)),
-                (25, (0, 0, -gait * 18)),
+                (1, (0, 0, -sweep)), (7, (0, -side * 19 if gait > 0 else 0, 0)),
+                (13, (0, 0, sweep)), (19, (0, -side * 19 if gait < 0 else 0, 0)),
+                (25, (0, 0, -sweep)),
             ]
             fly[leg] = [(1, (0, side * 10, -side * 24)), (7, (0, side * 20, -side * 29)),
                         (13, (0, side * 10, -side * 24))]

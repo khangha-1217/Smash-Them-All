@@ -162,7 +162,7 @@ Write failing tests BEFORE implementation for these modules:
 - `state-machine` — All transitions: MENU → LOADING → READY → PLAYING ⇄ PAUSED → GAME_OVER → MENU. Invalid transitions rejected.
 - `scoring` — Base points (100 crawling, 250 flying), combo multiplier application.
 - `combo` — Multiplier increment on hit, reset on miss, reset on 2s timeout. Edge cases: rapid hits, hit at exact timeout boundary.
-- `timer` — 90s countdown, pause/resume, game-over trigger at 0.
+- `timer` — Verify the round duration specified in FR-002, pause/resume, and a single game-over transition at zero.
 - `hit-detection` — Cone-sphere intersection math, nearest-hit selection when multiple in cone, near-miss detection (1.8× radius), out-of-range rejection.
 - `cockroach-ai` — Waypoint selection logic, surface-switching probability, flight Bézier curve generation, pre-flight timing.
 - `object-pool` — Allocate, release, recycle, pool-exhaustion behavior (no crash, graceful).

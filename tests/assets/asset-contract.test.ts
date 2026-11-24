@@ -8,7 +8,7 @@ interface GlbDocument {
   bufferViews: { byteOffset?: number; byteLength: number; extensions?: Record<string, unknown> }[];
   accessors: { count: number; bufferView: number }[];
   meshes: { name?: string; primitives: { indices?: number; mode?: number; attributes: { POSITION: number } }[] }[];
-  animations?: { name?: string }[];
+  animations?: { name?: string; channels: { target: { node?: number; path: string } }[] }[];
   images?: { bufferView?: number; mimeType?: string }[];
   nodes: { name?: string; mesh?: number; camera?: number; skin?: number }[];
 }
@@ -91,6 +91,20 @@ function expectMapEmpties(nodes: GlbDocument['nodes'], surfaces: string[]) {
 }
 
 describe('model asset contract', () => {
+  it('weapons/slipper.glb animates the right hand or wrist in swing', () => {
+    const { doc } = parseGlb(assetBytes('models/weapons/slipper.glb'));
+    const swing = doc.animations?.find(({ name }) => name === 'swing');
+    const hasHandMotion = swing?.channels.some(({ target }) => {
+      if (target.node === undefined || (target.path !== 'translation' && target.path !== 'rotation')) {
+        return false;
+      }
+      const name = doc.nodes[target.node]?.name;
+      return name === 'right_hand' || name === 'right_wrist';
+    });
+
+    expect(hasHandMotion, 'swing must target right_hand or right_wrist with a translation or rotation channel').toBe(true);
+  });
+
   it.each(models)('$path fits its geometry, compression and content budgets', ({ path, maxBytes, maxTriangles, clips, surfaces }) => {
     const file = assetBytes(`models/${path}`);
     expect(file.length).toBeLessThanOrEqual(maxBytes);

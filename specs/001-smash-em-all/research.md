@@ -56,7 +56,7 @@
 
 ## Decision 6: Hit Detection Approach
 
-**Decision**: Cone-shaped raycast (25° half-angle, 3m range) from camera center on swing, checked against cockroach sphere hitboxes. Nearest hit wins. Near-miss at 1.8× hitbox radius.
+**Decision**: Cone-shaped raycast (25° half-angle, 3m range) from camera center at the contact beat, checked against cockroach sphere hitboxes. Nearest hit wins. Near-miss at 1.8× hitbox radius.
 
 **Rationale**: "Generous hit" design principle (Constitution §2.2). 25° cone is wide enough to feel satisfying without being too easy. Flying cockroach hitbox is 1.3× crawling hitbox to compensate for increased difficulty. Swing lockout of 300ms prevents spam and creates rhythmic gameplay.
 
@@ -68,6 +68,40 @@
 
 ## Decision 8: Miss Definition
 
-**Decision**: Every swing that does not hit a cockroach counts as a miss (including swinging at empty space). Misses reset combo, lower accuracy, and count against "Perfect Aim" achievement.
+**Decision**: Every resolved swing that does not hit a cockroach counts as a miss, including an empty swing. Misses reset combo, lower accuracy, and count against "Perfect Aim" achievement. A swing canceled before contact contributes no outcome.
 
 **Rationale**: Simple mental model for players ("hit = good, miss = bad"). Creates strategic pressure to aim carefully rather than spam swings. Synergizes with 300ms swing lockout to create deliberate, satisfying gameplay rhythm.
+
+## Gameplay Feel Increment (2026-11-23)
+
+### Shared Contact Timeline
+
+**Decision** — Keep a pending contact on the round's active clock. Split an update at the contact deadline so the cockroach world is advanced through that instant before testing. Order newly processed aim changes on the same timeline. If a frame spans contact and expiry, compare the actual deadlines. Expiry wins a tie. Use the active swing timeline and a contact notification to synchronize the visible strike and feedback.
+
+**Rationale** — The current input handler samples aim and the round resolves damage on press. The round timer uses full elapsed time, while the viewmodel advances with a delta capped at 50 ms. Resolving against the final state of a long frame can turn an eligible hit into a cancellation or use aim from after contact.
+
+**Alternatives considered** — Starting a wall-clock timeout would require separate pause and expiry coordination. Resolving on animation completion would move gameplay authority into rendering. Polling for contact once at the end of each frame would use targets from the wrong time on long frames.
+
+### Supported Scurry and Gait
+
+**Decision** — Use short supported waypoint legs with an elapsed-time acceleration and braking profile. Retain heading through the turn hold and supply surface orientation, facing and speed to the existing renderer for an alternating tripod gait. Separate supported corner crossings at their seam and stay on the current surface if continuity cannot be established.
+
+**Rationale** — The current AI selects a constant 0.5–1.2 m/s for each trip and snaps to the destination surface normal at arrival. The renderer infers heading from displacement and runs the crawl clip at a fixed rate. The loader assigns furniture support IDs only to upward-facing markers, so shared IDs or nearby waypoints alone cannot establish continuity at a corner. Supported legs and consistent gait timing improve pursuit without a new navigation system.
+
+**Alternatives considered** — Animation-only changes would leave target motion unchanged. Per-foot collision or a new runtime navigation mesh would add CPU cost and authoring complexity for mostly planar surfaces.
+
+### Weapon Scale and Hand
+
+**Decision** — Calibrate projected body and slipper lengths using a repeatable Kitchen countertop view based on 0:06–0:08 of the workspace reference clip. Adjust per-weapon display mounts first. Tune visual cockroach scale as needed to preserve a large enough readable slipper, while retaining the 0.06 m ground and 0.078 m flight collision radii. Budget the new hand and slipper together and reuse the existing material and asset pipeline.
+
+**Rationale** — The baseline slipper is about 26 cm long and is mounted near the camera at 0.47 m depth. The cockroach body is about 4 cm. World dimensions alone cannot yield the required on-screen ratio. The baseline exports are one primitive each and use 272 triangles for the cockroach, 682 for the slipper, 744 for the flyswatter, and 504 for the cardboard. This leaves 118 triangles for the hand with the existing slipper mesh, so simplify the slipper as needed within the 800-triangle combined cap.
+
+**Alternatives considered** — Uniform scaling in world units ignores camera depth and pose. Separate hand and weapon assets add a load and another draw. Scaling collision with the art would change the accepted combat range or aim behavior.
+
+### Round Duration
+
+**Decision** — Use one shared 60,000 ms duration for the round timer and HUD initialization. Use the existing active-play clock and seconds-based event payloads. Keep the warning threshold at ten seconds remaining.
+
+**Rationale** — `src/core/timer.ts` currently supplies the starting and reset duration. `src/ui/hud.ts` also supplies a literal when resetting the display. A shared value keeps start, replay and the first HUD frame in agreement across both modes.
+
+**Alternatives considered** — Editing two independent literals leaves room for the display and timer to drift. Letting the HUD own the timer would tie expiry to presentation.

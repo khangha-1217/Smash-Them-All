@@ -396,6 +396,7 @@ body[data-ad-break] #ad-slot-bottom:not([hidden]) ~ #ui { --ad-space-bottom: var
 .reticle::after { width: 2px; height: 16px; }
 .reticle[data-feedback="hit"] { animation: hit-flash 190ms ease-out; color: white; }
 .reticle[data-feedback="near-miss"] { animation: near-shake 190ms ease-out; color: #ff7d7d; }
+.reticle[data-feedback="miss"] { animation: miss-pulse 190ms ease-out; color: #d5e4ef; }
 
 @keyframes hit-flash {
   0% { transform: translate(-50%, -50%) scale(1.65) rotate(45deg); }
@@ -404,6 +405,10 @@ body[data-ad-break] #ad-slot-bottom:not([hidden]) ~ #ui { --ad-space-bottom: var
 @keyframes near-shake {
   30% { transform: translate(calc(-50% - 5px), -50%); }
   65% { transform: translate(calc(-50% + 4px), -50%); }
+}
+@keyframes miss-pulse {
+  0% { transform: translate(-50%, -50%) scale(.72); opacity: .65; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
 .effects { position: absolute; inset: 0; overflow: hidden; }

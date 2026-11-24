@@ -13,7 +13,6 @@ const LOOK_SENSITIVITY = 0.0022;
 export class CameraController {
   private readonly position = new Vector3();
   private readonly velocity = new Vector3();
-  private readonly direction = new Vector3();
   private pitch = 0;
   private yaw = 0;
   private map?: MapData;
@@ -70,9 +69,12 @@ export class CameraController {
 
   aim(): { position: Vec3; direction: Vec3 } {
     // The cosmetic camera shake never changes the hit ray.
-    this.direction.set(-Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch),
-      -Math.cos(this.yaw) * Math.cos(this.pitch));
-    return { position: this.position, direction: this.direction };
+    const { x, y, z } = this.position;
+    const horizontal = Math.cos(this.pitch);
+    return {
+      position: { x, y, z },
+      direction: { x: -Math.sin(this.yaw) * horizontal, y: Math.sin(this.pitch), z: -Math.cos(this.yaw) * horizontal },
+    };
   }
 
   shake(x: number, y: number): void {

@@ -1,8 +1,11 @@
-import { distance, dot, lerp, lerpVec3, quadraticBezier, scale, subtract } from '../utils/math-utils';
+import { clamp, distance, dot, lerp, lerpVec3, normalize, quadraticBezier, scale, subtract } from '../utils/math-utils';
 import { CRAWLING_HITBOX_RADIUS, FLYING_HITBOX_RADIUS } from './hit-detection';
-import type { Cockroach, GameMode, SurfacePoint, Vec3 } from './types';
+import type { Aabb, Cockroach, GameMode, SurfacePoint, Vec3 } from './types';
 
 const ADJACENT_WAYPOINT_DISTANCE = 1.25;
+const MAX_GROUND_LEG = 2;
+const FACE_EPSILON = 1e-5;
+const AXES = ['x', 'y', 'z'] as const;
 const SURFACE_SWITCH_CHANCE = 0.1;
 const PREFLIGHT_MS = 1_500;
 const FLIGHT_MS = 2_000;
@@ -11,10 +14,63 @@ const DEFAULT_PLAYER_POSITION = { x: 0, y: 1.6, z: 0 };
 
 interface CockroachMotion {
   idleRemainingMs: number;
-  destination: SurfacePoint | null;
-  supportId: number | undefined;
+  support: SurfacePoint;
+  previous: SurfacePoint | null;
+  leg: GroundLeg | null;
   flightPhaseRemainingMs: number;
   spawnIndex: number;
+}
+
+interface GroundRoute {
+  target: SurfacePoint;
+  seam?: Vec3;
+}
+
+interface GroundLeg {
+  start: Vec3;
+  end: Vec3;
+  elapsedMs: number;
+  durationMs: number;
+  peakSpeed: number;
+  route: GroundRoute;
+}
+
+function contains(face: Aabb, point: Vec3): boolean {
+  return AXES.every(axis => point[axis] >= face.min[axis] - FACE_EPSILON
+    && point[axis] <= face.max[axis] + FACE_EPSILON);
+}
+
+function supportedRoute(from: SurfacePoint, target: SurfacePoint): GroundRoute | null {
+  const range = distance(from.position, target.position);
+  if (range <= FACE_EPSILON || range > MAX_GROUND_LEG) return null;
+  if (from.supportId !== undefined && target.supportId !== undefined && from.supportId !== target.supportId) return null;
+  const alignment = dot(from.surfaceNormal, target.surfaceNormal);
+  const coplanar = alignment > 1 - FACE_EPSILON && from.surfaceType === target.surfaceType
+    && Math.abs(dot(subtract(target.position, from.position), from.surfaceNormal)) < FACE_EPSILON;
+  const a = from.supportBounds;
+  const b = target.supportBounds;
+  if ((a && !contains(a, from.position)) || (b && !contains(b, target.position))) return null;
+  if (coplanar && ((!a && !b) || (a && contains(a, target.position)) || (b && contains(b, from.position)))) {
+    return { target };
+  }
+  if (!a || !b || (!coplanar && (Math.abs(alignment) > FACE_EPSILON || range > ADJACENT_WAYPOINT_DISTANCE))) {
+    return null;
+  }
+
+  // A point in the intersection splits travel into two segments inside convex faces.
+  const seam = lerpVec3(from.position, target.position, 0.5);
+  for (const axis of AXES) {
+    const min = Math.max(a.min[axis], b.min[axis]);
+    const max = Math.min(a.max[axis], b.max[axis]);
+    if (min > max + FACE_EPSILON) return null;
+    seam[axis] = clamp(seam[axis], min, max);
+  }
+  return { target, seam };
+}
+
+function tangent(normal: Vec3): Vec3 {
+  const axis = Math.abs(normal.z) < 0.9 ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 };
+  return normalize(subtract(axis, scale(normal, dot(axis, normal))));
 }
 
 export type FlightPhaseChange =
@@ -29,6 +85,7 @@ export function createCockroach(id: number): Cockroach {
     position: { x: 0, y: 0, z: 0 },
     surfaceType: '',
     surfaceNormal: { x: 0, y: 1, z: 0 },
+    groundFacing: { x: 0, y: 0, z: 1 },
     targetWaypoint: null,
     speed: 0,
     hitboxRadius: CRAWLING_HITBOX_RADIUS,
@@ -57,8 +114,9 @@ export class CockroachAI {
     const start = this.spawnPoints[spawnIndex];
     const motion: CockroachMotion = {
       idleRemainingMs: 0,
-      destination: null,
-      supportId: start.supportId,
+      leg: null,
+      support: start,
+      previous: null,
       flightPhaseRemainingMs: this.mode === 'hell' ? lerp(3_000, 8_000, this.random()) : Infinity,
       spawnIndex,
     };
@@ -66,12 +124,20 @@ export class CockroachAI {
     cockroach.alive = true;
     Object.assign(cockroach.position, start.position);
     Object.assign(cockroach.surfaceNormal, start.surfaceNormal);
+    Object.assign(cockroach.groundFacing, tangent(start.surfaceNormal));
     cockroach.surfaceType = start.surfaceType;
     cockroach.hitboxRadius = CRAWLING_HITBOX_RADIUS;
     cockroach.flightCurve = null;
     cockroach.flightProgress = 0;
     this.beginIdle(cockroach, motion);
     return true;
+  }
+
+  timeUntilArrival(cockroach: Cockroach): number {
+    // The round only queries pool slots already initialized by spawn.
+    const remainingMs = this.motions.get(cockroach)!.flightPhaseRemainingMs;
+    if (cockroach.state === 'flying') return remainingMs;
+    return remainingMs + FLIGHT_MS + (cockroach.state === 'preflight' ? 0 : PREFLIGHT_MS);
   }
 
   update(
@@ -113,8 +179,8 @@ export class CockroachAI {
   private updateGround(cockroach: Cockroach, motion: CockroachMotion, deltaMs: number): void {
     let timeLeft = deltaMs;
     while (timeLeft > 0) {
-      const target = motion.destination;
-      if (!target) {
+      const leg = motion.leg;
+      if (!leg) {
         const idleDelta = Math.min(timeLeft, motion.idleRemainingMs);
         timeLeft -= idleDelta;
         motion.idleRemainingMs -= idleDelta;
@@ -122,67 +188,78 @@ export class CockroachAI {
         continue;
       }
 
-      const position = cockroach.position;
-      const remainingDistance = distance(position, target.position);
-      const travelMs = 1_000 * remainingDistance / cockroach.speed;
-      if (timeLeft < travelMs) {
-        const fraction = timeLeft / travelMs;
-        position.x = lerp(position.x, target.position.x, fraction);
-        position.y = lerp(position.y, target.position.y, fraction);
-        position.z = lerp(position.z, target.position.z, fraction);
+      const remainingMs = leg.durationMs - leg.elapsedMs;
+      if (timeLeft < remainingMs) {
+        leg.elapsedMs += timeLeft;
+        const t = leg.elapsedMs / leg.durationMs;
+        // Smoothstep displacement has derivative 6t(1-t), peaking halfway.
+        Object.assign(cockroach.position, lerpVec3(leg.start, leg.end, t * t * (3 - 2 * t)));
+        cockroach.speed = 4 * leg.peakSpeed * t * (1 - t);
         return;
       }
 
-      timeLeft -= travelMs;
-      Object.assign(position, target.position);
+      timeLeft -= remainingMs;
+      Object.assign(cockroach.position, leg.end);
+      const target = leg.route.target;
       Object.assign(cockroach.surfaceNormal, target.surfaceNormal);
       cockroach.surfaceType = target.surfaceType;
-      motion.supportId = target.supportId;
+      if (leg.route.seam && distance(leg.end, target.position) > FACE_EPSILON) {
+        this.beginLeg(cockroach, motion, { target }, leg.peakSpeed);
+        continue;
+      }
+      if (Math.abs(dot(cockroach.groundFacing, target.surfaceNormal)) > FACE_EPSILON) {
+        Object.assign(cockroach.groundFacing, tangent(target.surfaceNormal));
+      }
+      motion.previous = motion.support;
+      motion.support = target;
       this.beginIdle(cockroach, motion);
     }
   }
 
   private beginIdle(cockroach: Cockroach, motion: CockroachMotion): void {
     motion.idleRemainingMs = lerp(300, 1_000, this.random());
-    motion.destination = null;
+    motion.leg = null;
     cockroach.state = 'idle';
     cockroach.targetWaypoint = null;
     cockroach.speed = 0;
   }
 
   private chooseWaypoint(cockroach: Cockroach, motion: CockroachMotion): void {
-    const sameSurface: SurfacePoint[] = [];
-    const adjacent: SurfacePoint[] = [];
+    const sameSurface: GroundRoute[] = [];
+    const adjacent: GroundRoute[] = [];
     for (const waypoint of this.waypoints) {
-      if (motion.supportId !== undefined && waypoint.supportId !== undefined && motion.supportId !== waypoint.supportId) {
-        continue;
-      }
-      const range = distance(cockroach.position, waypoint.position);
-      if (range === 0) continue;
-      const sameTag = waypoint.surfaceType === cockroach.surfaceType;
-      const alignment = dot(cockroach.surfaceNormal, waypoint.surfaceNormal);
-      if (sameTag && alignment > 0.95) {
-        sameSurface.push(waypoint);
-      } else if ((!sameTag || alignment > -0.95) && range <= ADJACENT_WAYPOINT_DISTANCE) {
-        adjacent.push(waypoint);
-      }
+      const route = supportedRoute(motion.support, waypoint);
+      if (!route) continue;
+      const candidates = dot(motion.support.surfaceNormal, waypoint.surfaceNormal) > 0.95 ? sameSurface : adjacent;
+      candidates.push(route);
     }
 
     const switchSurface = this.random() < SURFACE_SWITCH_CHANCE && adjacent.length > 0;
     const candidates = switchSurface ? adjacent : sameSurface;
-    if (candidates.length === 0) {
+    const route = candidates.length > 0 ? candidates[Math.floor(this.random() * candidates.length)]
+      : motion.previous && supportedRoute(motion.support, motion.previous);
+    if (!route) {
       this.beginIdle(cockroach, motion);
       return;
     }
 
-    motion.destination = candidates[Math.floor(this.random() * candidates.length)];
-    cockroach.targetWaypoint = motion.destination.position;
-    cockroach.speed = lerp(0.5, 1.2, this.random());
+    this.beginLeg(cockroach, motion, route, lerp(0.5, 1.2, this.random()));
+  }
+
+  private beginLeg(cockroach: Cockroach, motion: CockroachMotion, route: GroundRoute, peakSpeed: number): void {
+    const start = { ...cockroach.position };
+    const end = route.seam ?? route.target.position;
+    const length = distance(start, end);
+    // A marker may already sit on the seam. The zero-duration segment changes support immediately.
+    motion.leg = { start, end, route, peakSpeed, durationMs: 1_500 * length / peakSpeed, elapsedMs: 0 };
+    if (length > FACE_EPSILON) Object.assign(cockroach.groundFacing, normalize(subtract(end, start)));
+    cockroach.targetWaypoint = route.target.position;
+    cockroach.speed = 0;
     cockroach.state = 'crawling';
   }
 
   private beginPreflight(cockroach: Cockroach, motion: CockroachMotion): FlightPhaseChange {
-    motion.destination = null;
+    motion.leg = null;
     motion.flightPhaseRemainingMs = PREFLIGHT_MS;
     cockroach.state = 'preflight';
     cockroach.speed = 0;

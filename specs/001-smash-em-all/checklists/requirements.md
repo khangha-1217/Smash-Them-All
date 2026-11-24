@@ -2,7 +2,7 @@
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-11-20
-**Feature**: [spec.md](./spec.md)
+**Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 
@@ -33,7 +33,9 @@
 
 - All items pass (16/16). Spec is ready for `/speckit-plan`.
 - Clarification session 2026-11-21 resolved 2 ambiguities: miss definition (FR-006, FR-011) and mobile orientation (FR-012, edge case).
+- Revalidated on 2026-11-23 after the approved gameplay and visual update. The acceptance scenarios and success criteria cover the cockroach appearance and scurry, weapon scale and slipper swing, aim at contact, and interrupted swings.
+- Revalidated the 60-second countdown in both modes and on replay, including pause and expiry (FR-002, SC-014).
 - The spec deliberately avoids technical details (Three.js, TypeScript, GLB, etc.) — those are captured in the approved design document at `docs/superpowers/specs/2026-11-20-smash-em-all-design.md` and the constitution at `.specify/memory/constitution.md`.
-- 25 functional requirements cover all user stories comprehensively.
-- 10 success criteria are all measurable and technology-agnostic.
-- 7 edge cases identified covering boundary conditions.
+- 30 functional requirements cover the user stories and approved changes.
+- 14 success criteria describe observable or measurable outcomes.
+- 10 edge cases cover boundary conditions, including contact and expiry occurring in the same update.

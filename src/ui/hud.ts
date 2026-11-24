@@ -1,4 +1,4 @@
-import type { GameMode } from '../core/types';
+import { ROUND_DURATION_MS, type GameMode } from '../core/types';
 import type { I18n } from '../i18n/i18n';
 import type { EventEmitter } from '../utils/event-emitter';
 import { button, copy, element, translateCopy } from './dom';
@@ -93,7 +93,7 @@ export class Hud {
     this.currentMode = mode;
     this.currentScore = 0;
     this.currentKills = 0;
-    this.updateTimer(90);
+    this.updateTimer(ROUND_DURATION_MS / 1_000);
     this.localize();
     this.updateCombo(1);
   }

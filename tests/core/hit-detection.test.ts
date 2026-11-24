@@ -13,6 +13,7 @@ function cockroach(id: number, position: Vec3, flying = false): Cockroach {
     state: flying ? 'flying' : 'crawling',
     surfaceType: 'floor',
     surfaceNormal: { x: 0, y: 1, z: 0 },
+    groundFacing: { x: 0, y: 0, z: 1 },
     targetWaypoint: null,
     speed: 0,
     hitboxRadius: flying ? FLYING_HITBOX_RADIUS : CRAWLING_HITBOX_RADIUS,

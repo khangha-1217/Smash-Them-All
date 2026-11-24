@@ -9,8 +9,8 @@ import { calculateRank } from './ranking';
 import { Scoring } from './scoring';
 import { StateMachine } from './state-machine';
 import { Timer } from './timer';
-import { SWING_DURATION_MS } from './types';
-import type { Cockroach, MapData, Rank, Round, RoundConfig, RoundResult, Vec3 } from './types';
+import { ROUND_DURATION_MS, SWING_CONTACT_MS, SWING_DURATION_MS } from './types';
+import type { ActiveSwing, Cockroach, MapData, Rank, Round, RoundConfig, RoundResult, Vec3 } from './types';
 
 const DEFAULT_NORMAL_POOL_SIZE = 20;
 const DEFAULT_HELL_POOL_SIZE = 32;
@@ -42,7 +42,7 @@ export class RoundController {
   private resources: RoundResources | null = null;
   private playerPosition?: Vec3;
   private readonly respawnsAt: number[] = [];
-  private swingAvailableAt = 0;
+  private activeSwing: ActiveSwing | null = null;
   private swings = 0;
   private nearMisses = 0;
   private rank: Rank | null = null;
@@ -65,6 +65,12 @@ export class RoundController {
 
   get state() {
     return this.machine.current;
+  }
+
+  get swingElapsedMs(): number | null {
+    return this.activeSwing && this.timer.elapsedMs < this.activeSwing.availableAt
+      ? this.timer.elapsedMs - this.activeSwing.startedAt
+      : null;
   }
 
   get selection(): RoundConfig | null {
@@ -174,67 +180,116 @@ export class RoundController {
     });
   }
 
+  updateAim(position: Vec3, direction: Vec3): void {
+    this.command(() => {
+      if (this.state !== 'PLAYING' || this.activeSwing?.phase !== 'windup') return;
+      this.activeSwing.position = { ...position };
+      this.activeSwing.direction = { ...direction };
+    });
+  }
+
   swing(position: Vec3, direction: Vec3): boolean {
     return this.command(() => {
-      const activeMs = this.timer.elapsedMs;
-      if (this.state !== 'PLAYING' || activeMs < this.swingAvailableAt) return false;
-
-      const { pool } = this.resources!;
-      this.swingAvailableAt = activeMs + SWING_DURATION_MS;
-      this.swings++;
-      const hit = detectHit(position, direction, pool.active);
-      const swing = { position: { ...position }, direction: { ...direction } };
-      this.events.emit('WEAPON_SWING', swing);
-
-      if (hit.target) {
-        const { id: cockroachId, position: targetPosition, state } = hit.target;
-        // Release the target before exposing its outcome and schedule one replacement.
-        pool.release(hit.target);
-        this.respawnsAt.push(activeMs + RESPAWN_DELAY_MS);
-        const comboMultiplier = this.combo.hit(activeMs);
-        const points = this.scoring.awardKill(state, comboMultiplier);
-        this.events.emit('COCKROACH_HIT', { cockroachId, position: { ...targetPosition }, points, comboMultiplier });
-        this.events.emit('COCKROACH_DESPAWNED', { cockroachId, reason: 'killed' });
-      } else {
-        if (hit.nearMiss) this.nearMisses++;
-        this.combo.miss();
-        this.events.emit('WEAPON_MISS', swing);
-        if (hit.nearMiss) this.events.emit('COCKROACH_NEAR_MISS', hit.nearMiss);
-      }
+      if (this.state !== 'PLAYING' || this.activeSwing) return false;
+      const startedAt = this.timer.elapsedMs;
+      this.activeSwing = {
+        startedAt,
+        contactAt: startedAt + SWING_CONTACT_MS,
+        availableAt: startedAt + SWING_DURATION_MS,
+        phase: 'windup',
+        position: { ...position },
+        direction: { ...direction },
+      };
+      this.events.emit('WEAPON_SWING', { position: { ...position }, direction: { ...direction } });
       return true;
     });
   }
 
   tick(deltaMs: number): void {
     this.command(() => {
-      if (this.state !== 'PLAYING') return;
-      const elapsedMs = this.timer.advance(deltaMs);
-      if (elapsedMs === 0 || this.timer.timeRemaining === 0) return;
-
-      const activeMs = this.timer.elapsedMs;
-      const resources = this.resources!;
-      this.combo.update(activeMs);
-      for (const cockroach of resources.pool.active) {
-        const reachedPlayer = resources.ai.update(cockroach, elapsedMs, this.playerPosition, this.emitFlightPhase);
-        const { x, y, z } = cockroach.surfaceNormal;
-        this.events.emit('COCKROACH_MOVED', {
-          cockroachId: cockroach.id,
-          position: { ...cockroach.position },
-          // Tilt the local up axis to the surface normal. The view handles facing and interpolation.
-          rotation: { x: Math.atan2(z, y), y: 0, z: Math.atan2(-x, Math.hypot(y, z)) },
-          state: cockroach.state,
-        });
-        if (reachedPlayer) {
-          resources.pool.release(cockroach);
-          this.respawnsAt.push(activeMs + RESPAWN_DELAY_MS);
-          this.events.emit('COCKROACH_DESPAWNED', { cockroachId: cockroach.id, reason: 'reached_player' });
-        }
+      if (this.state !== 'PLAYING' || !Number.isFinite(deltaMs) || deltaMs <= 0) return;
+      let remainingMs = deltaMs;
+      const swing = this.activeSwing;
+      // At an expiry tie the timer ends the round with the swing still pending.
+      if (swing?.phase === 'windup' && swing.contactAt < ROUND_DURATION_MS) {
+        const untilContact = swing.contactAt - this.timer.elapsedMs;
+        const windupMs = Math.min(remainingMs, untilContact);
+        this.advance(windupMs);
+        remainingMs -= windupMs;
+        // Fractional deltas can round onto the deadline in the timer's subtraction.
+        if (windupMs === untilContact || this.timer.elapsedMs >= swing.contactAt) this.resolveContact(swing);
       }
+      if (remainingMs > 0) this.advance(remainingMs);
+      if (swing && this.timer.elapsedMs >= swing.availableAt) this.activeSwing = null;
+    });
+  }
+
+  private resolveContact(swing: ActiveSwing): void {
+    const activeMs = swing.contactAt;
+    const { pool } = this.resources!;
+    const hit = detectHit(swing.position, swing.direction, pool.active);
+    swing.phase = 'recovery';
+    this.swings++;
+    this.events.emit('WEAPON_CONTACT', { outcome: hit.type });
+    if (hit.target) {
+      const { id: cockroachId, position: targetPosition, state } = hit.target;
+      // Release the target before exposing its outcome and schedule one replacement.
+      pool.release(hit.target);
+      this.respawnsAt.push(activeMs + RESPAWN_DELAY_MS);
+      const comboMultiplier = this.combo.hit(activeMs);
+      const points = this.scoring.awardKill(state, comboMultiplier);
+      this.events.emit('COCKROACH_HIT', { cockroachId, position: { ...targetPosition }, points, comboMultiplier });
+      this.events.emit('COCKROACH_DESPAWNED', { cockroachId, reason: 'killed' });
+    } else {
+      if (hit.nearMiss) this.nearMisses++;
+      this.combo.miss();
+      this.events.emit('WEAPON_MISS', { position: { ...swing.position }, direction: { ...swing.direction } });
+      if (hit.nearMiss) this.events.emit('COCKROACH_NEAR_MISS', hit.nearMiss);
+    }
+  }
+
+  private advance(deltaMs: number): void {
+    const resources = this.resources!;
+    let remainingMs = deltaMs;
+    while (remainingMs > 0) {
+      const nextRespawnAt = this.respawnsAt[0] ?? Infinity;
+      let stepMs = Math.min(remainingMs, nextRespawnAt - this.timer.elapsedMs);
+      for (const cockroach of resources.pool.active) {
+        stepMs = Math.min(stepMs, resources.ai.timeUntilArrival(cockroach));
+      }
+
+      this.timer.advance(stepMs);
+      if (this.timer.timeRemaining === 0) return;
+      remainingMs -= stepMs;
+      const activeMs = this.timer.elapsedMs;
+      this.advanceCockroaches(resources, stepMs, activeMs);
       while (this.respawnsAt.length && this.respawnsAt[0] <= activeMs) {
         this.respawnsAt.shift();
         this.spawn(resources);
       }
-    });
+    }
+  }
+
+  private advanceCockroaches(resources: RoundResources, elapsedMs: number, activeMs: number): void {
+    this.combo.update(activeMs);
+    for (const cockroach of resources.pool.active) {
+      const reachedPlayer = resources.ai.update(cockroach, elapsedMs, this.playerPosition, this.emitFlightPhase);
+      const { x, y, z } = cockroach.surfaceNormal;
+      this.events.emit('COCKROACH_MOVED', {
+        cockroachId: cockroach.id,
+        position: { ...cockroach.position },
+        // Tilt the local up axis to the surface normal.
+        rotation: { x: Math.atan2(z, y), y: 0, z: Math.atan2(-x, Math.hypot(y, z)) },
+        state: cockroach.state,
+        groundFacing: { ...cockroach.groundFacing },
+        speed: cockroach.speed,
+      });
+      if (reachedPlayer) {
+        resources.pool.release(cockroach);
+        this.respawnsAt.push(activeMs + RESPAWN_DELAY_MS);
+        this.events.emit('COCKROACH_DESPAWNED', { cockroachId: cockroach.id, reason: 'reached_player' });
+      }
+    }
   }
 
   private readonly emitFlightPhase = (change: FlightPhaseChange): void => {
@@ -269,6 +324,7 @@ export class RoundController {
   }
 
   private finish(): void {
+    this.activeSwing = null;
     const stats = this.stats!;
     const placement = calculateRank(stats.score, stats.mode);
     const roundResult: RoundResult = {
@@ -286,7 +342,7 @@ export class RoundController {
     this.resources = null;
     this.playerPosition = undefined;
     this.respawnsAt.length = 0;
-    this.swingAvailableAt = 0;
+    this.activeSwing = null;
     this.swings = 0;
     this.nearMisses = 0;
     this.rank = null;

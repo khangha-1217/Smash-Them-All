@@ -1,6 +1,7 @@
 import type {
   CockroachState,
   GameState,
+  HitResult,
   Language,
   NearMiss,
   Pose,
@@ -26,6 +27,7 @@ export interface GameEvents {
   TIMER_TICK: { timeRemaining: number };
   TIMER_WARNING: { timeRemaining: number };
   WEAPON_SWING: SwingEvent;
+  WEAPON_CONTACT: { outcome: HitResult['type'] };
   COCKROACH_HIT: CockroachPositionEvent & { points: number; comboMultiplier: number };
   COCKROACH_NEAR_MISS: NearMiss;
   WEAPON_MISS: SwingEvent;
@@ -33,7 +35,7 @@ export interface GameEvents {
   COMBO_RESET: Record<string, never>;
   SCORE_UPDATED: { score: number; delta: number };
   COCKROACH_SPAWNED: CockroachPositionEvent & { surfaceType: string };
-  COCKROACH_MOVED: Pose & { cockroachId: number; state: CockroachState };
+  COCKROACH_MOVED: Pose & { cockroachId: number; state: CockroachState; groundFacing: Vec3; speed: number };
   COCKROACH_PREFLIGHT: CockroachPositionEvent;
   COCKROACH_FLYING: CockroachPositionEvent & { velocity: Vec3 };
   COCKROACH_DESPAWNED: { cockroachId: number; reason: 'killed' | 'reached_player' };

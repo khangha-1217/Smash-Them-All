@@ -1,5 +1,6 @@
 import { AchievementTracker } from './core/achievement-tracker';
 import { RoundController } from './core/round';
+import { SWING_CONTACT_MS } from './core/types';
 import type { MapId, RoundConfig } from './core/types';
 import { AudioManager } from './audio/audio-manager';
 import { I18n } from './i18n/i18n';
@@ -48,14 +49,25 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   let roaches: CockroachRenderer | undefined;
   let loadFailed = false;
   let lastFrame = performance.now();
+  let lastRoundUpdate = lastFrame;
+  let contactToDraw = false;
+  let showPendingResults: (() => void) | undefined;
+  const outcomeSounds: ('hit' | 'miss')[] = [];
   let resumeRequested = false;
   let rotationPaused = false;
   let trophyOpen = false;
 
   const input = new InputManager(canvas, hud.joystick, {
     move: (right, forward, seconds) => camera.move(right, forward, seconds),
-    look: (horizontal, vertical) => camera.look(horizontal, vertical),
+    look: (horizontal, vertical) => {
+      advanceRound(performance.now());
+      if (round.state !== 'PLAYING') return;
+      camera.look(horizontal, vertical);
+      const { position, direction } = camera.aim();
+      round.updateAim(position, direction);
+    },
     swing: () => {
+      advanceRound(performance.now());
       const { position, direction } = camera.aim();
       round.swing(position, direction);
     },
@@ -126,7 +138,8 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     resumeRequested = false;
     if (to !== 'PAUSED') rotationPaused = false;
     if (to === 'PLAYING') {
-      lastFrame = performance.now();
+      lastRoundUpdate = Math.max(lastRoundUpdate, lastFrame, performance.now());
+      lastFrame = lastRoundUpdate;
     } else if (to === 'LOADING') {
       releaseRoundAssets();
       loadFailed = false;
@@ -144,7 +157,10 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     }
   });
 
-  events.on('WEAPON_SWING', () => weapon?.swing());
+  events.on('WEAPON_CONTACT', ({ outcome }) => {
+    contactToDraw = true;
+    if (outcome === 'miss') vfx.miss();
+  });
   events.on('PLAYER_MOVED', pose => audio.setListenerPose(pose));
   events.on('ROUND_STARTED', ({ mode }) => audio.setMode(mode));
   events.on('COCKROACH_SPAWNED', event => {
@@ -162,22 +178,29 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     audio.despawn(event.cockroachId);
   });
   events.on('COCKROACH_HIT', event => {
-    audio.play('hit');
+    outcomeSounds.push('hit');
     vfx.hit(event);
   });
-  events.on('WEAPON_MISS', () => audio.play('miss'));
+  events.on('WEAPON_MISS', () => outcomeSounds.push('miss'));
   events.on('COCKROACH_NEAR_MISS', () => vfx.nearMiss());
   events.on('COMBO_UPDATED', ({ multiplier }) => {
     if (multiplier === 5 || multiplier === 10) audio.play('combo-chime');
   });
   events.on('TIMER_WARNING', () => audio.play('timer-tick'));
   events.on('ROUND_ENDED', ({ roundResult }) => {
-    audio.play('gameover');
     const { mapId, mode, score } = roundResult;
     const previous = storage.recordPersonalBest(mapId, mode, score);
     const newlyUnlocked = achievements.completeRound(roundResult);
-    results.show(roundResult, previous, newlyUnlocked);
-    refreshOverlayVisibility();
+    const showResults = () => {
+      vfx.reset();
+      camera.shake(0, 0);
+      weapon?.update(0, false, null);
+      audio.play('gameover');
+      results.show(roundResult, previous, newlyUnlocked);
+      refreshOverlayVisibility();
+    };
+    if (contactToDraw) showPendingResults = showResults;
+    else showResults();
   });
 
   const playUiClick = () => {
@@ -218,6 +241,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   }
 
   function pauseRound(): void {
+    advanceRound(performance.now());
     round.pause();
   }
 
@@ -232,13 +256,14 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
   function refreshOverlayVisibility(): void {
     const portrait = orientation.portrait;
     const { state } = round;
+    const lateContact = state === 'GAME_OVER' && (contactToDraw || showPendingResults !== undefined);
     document.body.toggleAttribute('data-ad-break',
-      !portrait && (state === 'GAME_OVER' || (state === 'MENU' && !trophyOpen)));
+      !portrait && ((state === 'GAME_OVER' && !lateContact) || (state === 'MENU' && !trophyOpen)));
     start.root.hidden = portrait || trophyOpen || (state !== 'MENU' && state !== 'LOADING' && state !== 'READY');
     trophies.root.hidden = portrait || !trophyOpen;
-    hud.root.hidden = portrait || state !== 'PLAYING';
+    hud.root.hidden = portrait || (state !== 'PLAYING' && !lateContact);
     pause.root.hidden = portrait || state !== 'PAUSED';
-    results.root.hidden = portrait || state !== 'GAME_OVER';
+    results.root.hidden = portrait || state !== 'GAME_OVER' || lateContact;
   }
 
   function updateOrientation(): void {
@@ -248,7 +273,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     orientation.show(portrait);
     if (portrait && round.state === 'PLAYING') {
       rotationPaused = true;
-      round.pause();
+      pauseRound();
     } else if (!portrait) {
       if (rotationPaused) resumeWhenAllowed();
       startWhenReady();
@@ -364,7 +389,7 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
       await outcomesReady;
       if (pendingRound !== abort || round.state !== 'LOADING' || abort.signal.aborted) return;
 
-      preparedWeapon = new WeaponViewmodel(weaponResult.value, scene.viewmodel, scene.weaponCamera);
+      preparedWeapon = new WeaponViewmodel(weaponResult.value, scene.viewmodel, scene.weaponCamera, config.weaponId);
       const poolSize = config.mode === 'hell' ? 40 : 25;
       preparedRoaches = new CockroachRenderer(roachResult.value, poolSize, mapResult.value.data.spawnPoints);
       if (!round.ready(mapResult.value.data)) throw new Error('Round rejected the selected map');
@@ -411,27 +436,59 @@ function mountGame(canvas: HTMLCanvasElement, ui: HTMLElement) {
     roaches?.dispose();
     weapon = undefined;
     roaches = undefined;
+    contactToDraw = false;
+    showPendingResults = undefined;
+    outcomeSounds.length = 0;
     vfx.reset();
+  }
+
+  function advanceRound(now: number): void {
+    if (round.state !== 'PLAYING' || now <= lastRoundUpdate) return;
+    const elapsedMs = now - lastRoundUpdate;
+    lastRoundUpdate = now;
+    round.updatePlayerPosition(scene.camera.position);
+    round.tick(elapsedMs);
   }
 
   function frame(now: number): void {
     const elapsedMs = Math.max(0, now - lastFrame);
-    lastFrame = now;
+    lastFrame = Math.max(lastFrame, now);
     const seconds = Math.min(elapsedMs, 50) / 1_000;
-    if (round.state === 'PLAYING') {
-      const walking = input.update(seconds);
-      round.updatePlayerPosition(scene.camera.position);
-      round.tick(elapsedMs);
-      if (round.state === 'PLAYING') {
-        audio.updateAmbience(seconds);
-        roaches?.update(seconds);
-        weapon?.update(seconds, walking);
-        vfx.update(seconds, (x, y) => camera.shake(x, y));
-      }
-    } else if (round.state === 'MENU' || round.state === 'LOADING') {
-      camera.preview(now / 1_000);
+    advanceRound(now);
+    const { state } = round;
+    // A portrait prompt can hide the HUD while a late contact is waiting to draw.
+    const drawContact = contactToDraw && (state !== 'GAME_OVER' || !hud.root.hidden);
+    if (showPendingResults && !contactToDraw) {
+      const showResults = showPendingResults;
+      showPendingResults = undefined;
+      showResults();
     }
-    scene.render(round.state === 'PLAYING' || round.state === 'PAUSED' || round.state === 'GAME_OVER');
+
+    const walking = state === 'PLAYING' && input.update(seconds);
+    if (walking) {
+      const { position, direction } = camera.aim();
+      round.updateAim(position, direction);
+    }
+    if (state === 'PLAYING') {
+      audio.updateAmbience(seconds);
+    }
+    if (state === 'PLAYING' || state === 'PAUSED' || drawContact) {
+      weapon?.update(state === 'PLAYING' ? seconds : 0, walking,
+        drawContact ? SWING_CONTACT_MS : round.swingElapsedMs);
+    }
+    if (state === 'PLAYING' || drawContact) {
+      roaches?.update(seconds);
+      vfx.update(drawContact ? 0 : seconds, (x, y) => camera.shake(x, y));
+    } else if (state === 'MENU' || state === 'LOADING') {
+      camera.preview(lastFrame / 1_000);
+    }
+    if (drawContact) {
+      // The game-over state stops active audio. Start any newly drawn outcome cues after it.
+      for (const sound of outcomeSounds) audio.play(sound);
+      outcomeSounds.length = 0;
+    }
+    scene.render(state === 'PLAYING' || state === 'PAUSED' || state === 'GAME_OVER');
+    if (drawContact) contactToDraw = false;
     requestAnimationFrame(frame);
   }
 
