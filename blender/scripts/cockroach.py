@@ -1,0 +1,175 @@
+"""Rebuild the rigged cockroach with Blender 5.3: blender -b --python blender/scripts/cockroach.py."""
+
+import math
+import sys
+from pathlib import Path
+
+import bpy
+from mathutils import Vector
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from asset_tools import Geometry, add_track, export_asset, reset_scene, set_view, studio_shade
+
+
+def shell(g, cx, cy, width, length, rings, color):
+    return g.shape([
+        [(cx + width * scale * math.cos(i * math.tau / 8),
+          cy + length * scale * math.sin(i * math.tau / 8), z) for i in range(8)]
+        for z, scale in rings
+    ], color)
+
+
+def tapered_joint(g, points, radii, color):
+    """One triangular tube follows each kink in a leg or feeler."""
+    outlines = []
+    for i, (point, radius) in enumerate(zip(points, radii)):
+        center = Vector(point)
+        direction = Vector(points[min(i + 1, len(points) - 1)]) - Vector(points[max(i - 1, 0)])
+        direction.normalize()
+        tangent = direction.cross(Vector((0, 0, 1))).normalized()
+        bitangent = direction.cross(tangent)
+        outlines.append([center + radius * (
+            math.cos(side * math.tau / 3) * tangent + math.sin(side * math.tau / 3) * bitangent
+        ) for side in range(3)])
+    return g.shape(outlines, color)
+
+
+def wing(g, side):
+    # Each folded forewing has a long ridge and a tapered mahogany rim.
+    outline = [(.00045, -.0213, .0066), (.0046, -.0196, .0067), (.0081, -.011, .0067),
+               (.0085, -.002, .0071), (.0054, .0040, .0081), (.00030, .0036, .0082)]
+    brim = [(side * x, y, z) for x, y, z in outline]
+    facets = ["8f462c", "ac5531", "bb6138", "cb7847", "b76138", "91462f"]
+    first = len(g.vertices)
+    crown = (side * .0031, -.0026, .0100)
+    lower = [(x, y, z - .0009) for x, y, z in brim]
+    for i, color in enumerate(facets):
+        j = (i + 1) % len(brim)
+        tri = (0, 1, 2) if side > 0 else (2, 1, 0)
+        quad = (0, 1, 2, 3) if side > 0 else (3, 2, 1, 0)
+        g.add([lower[i], lower[j], brim[j], brim[i]], [quad], "653729")
+        g.add([brim[i], brim[j], crown], [tri], color)
+    g.add(lower, [tuple(reversed(range(6))) if side > 0 else tuple(range(6))], "63332b")
+    return range(first, len(g.vertices))
+
+
+def geometry():
+    g = Geometry()
+    groups = {"body": []}
+    pivots = {"body": (0, 0, 0)}
+    groups["body"].extend(shell(g, 0, -.0095, .0083, .0125,
+                                ((.0027, .63), (.0055, 1), (.0078, .68)), "683d33"))
+    groups["body"].extend(shell(g, 0, .0042, .0077, .0070,
+                                ((.0035, .82), (.0074, 1), (.0097, .68)), "ab5838"))
+    groups["body"].extend(shell(g, 0, .0124, .0047, .0056,
+                                ((.0037, .80), (.0079, 1)), "784235"))
+
+    for side, suffix in ((-1, "l"), (1, "r")):
+        name = f"wing_{suffix}"
+        pivots[name] = (side * .0022, .0022, .0081)
+        groups[name] = wing(g, side)
+        for number, (y, elbow_y, toe_y, width) in enumerate(
+            ((.0067, .0113, .0089, .0129), (-.001, .0008, -.0055, .0152), (-.0087, -.0082, -.0170, .0145)),
+            start=1,
+        ):
+            name = f"leg_{number}_{suffix}"
+            pivot = (side * .0041, y, .0053)
+            pivots[name] = pivot
+            groups[name] = tapered_joint(g,
+                [pivot, (side * width * .72, elbow_y, .0051),
+                 (side * width, toe_y, .0003), (side * (width + .0015), toe_y - .0023, .0002)],
+                [.0010, .00082, .00032, .00016], "ae7651")
+
+        name = f"antenna_{suffix}"
+        pivot = (side * .0029, .0158, .0072)
+        pivots[name] = pivot
+        groups[name] = tapered_joint(g,
+            [pivot, (side * .0047, .0221, .0108),
+             (side * .0087, .0305, .0127), (side * .0133, .0370, .0097)],
+            [.00070, .00052, .00033, .00012], "c29163")
+        groups["body"].extend(g.tube((side * .0036, .0138, .0078),
+                                     (side * .0039, .0148, .0092), .00145, "342a2b", 3, .001))
+    # Center the asset on the body for placement and rotation in the game.
+    def center(point):
+        x, y, z = point
+        return (x, y + .002, z - .006)
+
+    g.vertices = [center(point) for point in g.vertices]
+    pivots = {name: center(point) for name, point in pivots.items()}
+    pivots["body"] = (0, 0, 0)
+    return g, pivots, groups
+
+
+def rig(mesh, pivots, groups):
+    armature = bpy.data.armatures.new("Cockroach articulated skeleton")
+    obj = bpy.data.objects.new("Cockroach rig", armature)
+    bpy.context.collection.objects.link(obj)
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT")
+    for name, pivot in pivots.items():
+        bone = armature.edit_bones.new(name)
+        bone.head = pivot
+        bone.tail = (pivot[0], pivot[1] + .006, pivot[2])
+        if name != "body":
+            bone.parent = armature.edit_bones["body"]
+    bpy.ops.object.mode_set(mode="OBJECT")
+    mesh.parent = obj
+    for name, indices in groups.items():
+        mesh.vertex_groups.new(name=name).add(list(indices), 1.0, "REPLACE")
+    skin = mesh.modifiers.new("Rigid shell pieces", "ARMATURE")
+    skin.object = obj
+    obj.select_set(False)
+    return obj
+
+
+def animate(roach):
+    bones = roach.pose.bones
+    idle = {}
+    crawl = {}
+    fly = {bones["body"]: [(1, (-12, 0, 0)), (7, (-6, 0, 0)), (13, (-12, 0, 0))]}
+    for side, suffix in ((-1, "l"), (1, "r")):
+        antenna = bones[f"antenna_{suffix}"]
+        idle[antenna] = [(1, (0, 0, 0)), (20, (5, 0, side * 7)), (40, (0, 0, 0))]
+        crawl[antenna] = [(1, (0, 0, 0)), (13, (-4, 0, side * 6)), (25, (0, 0, 0))]
+        fly[antenna] = [(1, (-14, 0, 0)), (7, (-22, 0, side * 13)), (13, (-14, 0, 0))]
+        wing_bone = bones[f"wing_{suffix}"]
+        fly[wing_bone] = [
+            (frame, (0, side * tilt, side * spread))
+            for frame, tilt, spread in ((1, -17, 67), (4, -58, 75), (7, -17, 67),
+                                        (10, -58, 75), (13, -17, 67))
+        ]
+        for number in range(1, 4):
+            leg = bones[f"leg_{number}_{suffix}"]
+            gait = side * (-1 if number % 2 else 1)
+            sweep = gait * side * 17
+            crawl[leg] = [
+                (1, (0, 0, -sweep)), (7, (0, -side * 19 if gait > 0 else 0, 0)),
+                (13, (0, 0, sweep)), (19, (0, -side * 19 if gait < 0 else 0, 0)),
+                (25, (0, 0, -sweep)),
+            ]
+            fly[leg] = [(1, (0, side * 10, -side * 24)), (7, (0, side * 20, -side * 29)),
+                        (13, (0, side * 10, -side * 24))]
+    add_track(roach, "idle", idle)
+    add_track(roach, "crawl", crawl)
+    add_track(roach, "fly", fly)
+
+
+def build():
+    reset_scene()
+    g, pivots, groups = geometry()
+    mesh = g.build("Cockroach shell, wings, legs and feelers", studio_shade)
+    roach = rig(mesh, pivots, groups)
+    animate(roach)
+    set_view((.052, .037, .065), (0, .005, 0), .070)
+    return roach
+
+
+def export():
+    export_asset("blender/cockroach.blend", "public/assets/models/cockroach.glb", animated=True)
+
+
+if __name__ == "__main__":
+    build()
+    export()

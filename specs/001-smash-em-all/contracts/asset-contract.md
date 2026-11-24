@@ -46,7 +46,9 @@
 | Max size | 100 KB |
 | Origin | Center of body |
 | Required animations | `idle`, `crawl`, `fly` |
-| Body length | ~0.04m (4cm) |
+| Body length | ~0.04 m at authoring scale. Gameplay presentation is calibrated in the first-person view |
+
+The `crawl` clip must loop an alternating tripod gait, with the planted feet on the local ground plane. Use the `idle` clip for subtle antenna motion. The first pose of `fly` must show open wings for the preflight hold. Validate the shell silhouette and ground contact on floor, counter and wall in [V9](../quickstart.md#v9-gameplay-feel-increment).
 
 ### Weapons
 
@@ -58,6 +60,10 @@
 
 **Origin:** Grip point (where the hand holds it).
 
+The slipper export includes the right hand and wrist motion in the same triangle and file budget. Keep both in one mesh primitive where possible. The `swing` clips use a shared contact phase after normalization by the viewmodel. Author a clear strike pose at that phase for each weapon. The slipper poses run from a supported right-hand grip through a diagonal strike to a quick return.
+
+Calibrate apparent model scale and crosshair clearance in the running game using [V9](../quickstart.md#v9-gameplay-feel-increment). Record countertop view and viewport details for repeatable comparisons.
+
 ### Audio
 
 | Category | Format | Channels | Sample Rate | Max Size |
@@ -67,7 +73,7 @@
 
 **Required SFX files:**
 - `public/assets/audio/sfx/hit.mp3` — weapon hits cockroach
-- `public/assets/audio/sfx/miss.mp3` — weapon swings, misses
+- `public/assets/audio/sfx/miss.mp3` — one cue at a resolved miss or near-miss
 - `public/assets/audio/sfx/scurry.mp3` — cockroach crawling (ambient)
 - `public/assets/audio/sfx/buzz.mp3` — cockroach flying
 - `public/assets/audio/sfx/ui-click.mp3` — button interaction

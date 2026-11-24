@@ -1,0 +1,49 @@
+export function element<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className = '',
+  text = '',
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  return node;
+}
+
+export function button(label: string, className: string, action: () => void): HTMLButtonElement {
+  const node = element('button', className, label);
+  node.type = 'button';
+  node.addEventListener('click', action);
+  return node;
+}
+
+export function keepDialogFocus(dialog: HTMLElement): void {
+  dialog.addEventListener('keydown', event => {
+    if (event.key !== 'Tab') return;
+    const buttons = dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (event.shiftKey && (event.target === first || event.target instanceof HTMLHeadingElement)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && event.target === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+}
+import type { I18n } from '../i18n/i18n';
+
+
+export function copy<T extends HTMLElement>(node: T, key: string): T {
+  node.dataset.locale = key;
+  return node;
+}
+
+export function translateCopy(root: HTMLElement, i18n: I18n): void {
+  for (const node of root.querySelectorAll<HTMLElement>('[data-locale]')) {
+    node.textContent = i18n.t(node.dataset.locale!);
+  }
+  for (const node of root.querySelectorAll<HTMLElement>('[data-locale-label]')) {
+    node.setAttribute('aria-label', i18n.t(node.dataset.localeLabel!));
+  }
+}

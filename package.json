@@ -1,0 +1,31 @@
+{
+  "name": "smash-em-all",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18.12"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "three": "0.187.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@vitest/coverage-v8>test-exclude": "7.0.1"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "18.19.130",
+    "@types/three": "0.187.0",
+    "@vitest/coverage-v8": "3.2.6",
+    "typescript": "5.9.3",
+    "vite": "5.4.21",
+    "vitest": "3.2.6"
+  }
+}
