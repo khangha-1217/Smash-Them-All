@@ -199,7 +199,7 @@ def set_view(eye, focus, distance, markers=False, clip_start=0.0003):
             region.view_rotation = rotation
             region.view_location = focus
             region.view_distance = distance
-            if screen == bpy.context.screen:
+            if not bpy.app.background and screen == bpy.context.screen:
                 viewport = next((window for window in area.regions if window.type == "WINDOW"), None)
                 with bpy.context.temp_override(area=area, region=viewport):
                     region.update()
