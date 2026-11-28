@@ -1,6 +1,6 @@
 import { clamp, distance, dot, lerp, lerpVec3, normalize, quadraticBezier, scale, subtract } from '../utils/math-utils';
 import { CRAWLING_HITBOX_RADIUS, FLYING_HITBOX_RADIUS } from './hit-detection';
-import type { Aabb, Cockroach, GameMode, SurfacePoint, Vec3 } from './types';
+import type { Aabb, BezierCurve, MapData, Cockroach, GameMode, SurfacePoint, Vec3 } from './types';
 
 const ADJACENT_WAYPOINT_DISTANCE = 1.25;
 const MAX_GROUND_LEG = 2;
@@ -19,6 +19,8 @@ interface CockroachMotion {
   leg: GroundLeg | null;
   flightPhaseRemainingMs: number;
   spawnIndex: number;
+  landing: SurfacePoint | null;
+  flightDurationMs: number;
 }
 
 interface GroundRoute {
@@ -40,6 +42,42 @@ function contains(face: Aabb, point: Vec3): boolean {
     && point[axis] <= face.max[axis] + FACE_EPSILON);
 }
 
+// Intersect the whole flight arc with each box face so a long tick cannot skip a thin obstacle.
+function firstContact(curve: BezierCurve, room: Aabb, colliders: readonly Aabb[]) {
+  const hit: { progress: number; surface: SurfacePoint | null } = { progress: Infinity, surface: null };
+  function inspect(box: Aabb, supportId?: number) {
+    for (const axis of AXES) {
+      const start = curve.start[axis];
+      const b = 2 * (curve.control[axis] - start);
+      const a = curve.end[axis] - start - b;
+      for (const side of ['min', 'max'] as const) {
+        const plane = box[side][axis];
+        const c = start - plane;
+        const normal = (side === 'min' ? 1 : -1) * (supportId === undefined ? 1 : -1);
+        const discriminant = b * b - 4 * a * c;
+        const roots = Math.abs(a) < 1e-10 ? [-c / b]
+          : [(-b - Math.sqrt(discriminant)) / (2 * a), (-b + Math.sqrt(discriminant)) / (2 * a)];
+        for (const t of roots) {
+          if (!(t >= 0 && t <= 1 && t < hit.progress) || normal * (2 * a * t + b) >= 0) continue;
+          const position = quadraticBezier(curve, t);
+          if (!contains(box, position)) continue;
+          position[axis] = plane;
+          const surfaceNormal = { x: 0, y: 0, z: 0 };
+          surfaceNormal[axis] = normal;
+          const supportBounds = { min: { ...box.min }, max: { ...box.max } };
+          supportBounds.min[axis] = supportBounds.max[axis] = plane;
+          const surfaceType = supportId !== undefined ? 'furniture'
+            : axis !== 'y' ? 'wall' : normal > 0 ? 'floor' : 'ceiling';
+          hit.surface = { position, surfaceNormal, surfaceType, supportBounds, supportId };
+          hit.progress = t;
+        }
+      }
+    }
+  }
+  inspect(room);
+  colliders.forEach((box, index) => inspect(box, index));
+  return hit;
+}
 function supportedRoute(from: SurfacePoint, target: SurfacePoint): GroundRoute | null {
   const range = distance(from.position, target.position);
   if (range <= FACE_EPSILON || range > MAX_GROUND_LEG) return null;
@@ -102,6 +140,7 @@ export class CockroachAI {
     private readonly waypoints: readonly SurfacePoint[],
     private readonly random: () => number = Math.random,
     private readonly mode: GameMode = 'normal',
+    private readonly geometry?: Pick<MapData, 'roomBounds' | 'colliders'>,
   ) {}
 
   spawn(cockroach: Cockroach): boolean {
@@ -119,6 +158,8 @@ export class CockroachAI {
       previous: null,
       flightPhaseRemainingMs: this.mode === 'hell' ? lerp(3_000, 8_000, this.random()) : Infinity,
       spawnIndex,
+      landing: null,
+      flightDurationMs: FLIGHT_MS,
     };
     this.motions.set(cockroach, motion);
     cockroach.alive = true;
@@ -133,21 +174,14 @@ export class CockroachAI {
     return true;
   }
 
-  timeUntilArrival(cockroach: Cockroach): number {
-    // The round only queries pool slots already initialized by spawn.
-    const remainingMs = this.motions.get(cockroach)!.flightPhaseRemainingMs;
-    if (cockroach.state === 'flying') return remainingMs;
-    return remainingMs + FLIGHT_MS + (cockroach.state === 'preflight' ? 0 : PREFLIGHT_MS);
-  }
-
   update(
     cockroach: Cockroach,
     deltaMs: number,
     playerPosition: Vec3 = DEFAULT_PLAYER_POSITION,
     onPhaseChange?: (change: FlightPhaseChange) => void,
-  ): boolean {
+  ): void {
     const motion = this.motions.get(cockroach);
-    if (!cockroach.alive || !motion || !Number.isFinite(deltaMs)) return false;
+    if (!cockroach.alive || !motion || !Number.isFinite(deltaMs)) return;
 
     let timeLeft = deltaMs;
     while (timeLeft > 0) {
@@ -155,12 +189,16 @@ export class CockroachAI {
       timeLeft -= step;
       motion.flightPhaseRemainingMs -= step;
       if (cockroach.state === 'flying') {
-        if (!cockroach.flightCurve) return false;
-        const elapsed = 1 - motion.flightPhaseRemainingMs / FLIGHT_MS;
+        if (!cockroach.flightCurve) return;
+        const elapsed = 1 - motion.flightPhaseRemainingMs / motion.flightDurationMs;
         const progress = elapsed * lerp(FLIGHT_INITIAL_RATE, 1, elapsed);
         cockroach.flightProgress = progress;
         Object.assign(cockroach.position, quadraticBezier(cockroach.flightCurve, progress));
-        return elapsed === 1;
+        if (motion.flightPhaseRemainingMs === 0) {
+          if (motion.landing) this.land(cockroach, motion, motion.landing);
+          else this.descend(cockroach, motion);
+        }
+        continue;
       }
 
       if (cockroach.state === 'idle' || cockroach.state === 'crawling') {
@@ -173,7 +211,6 @@ export class CockroachAI {
         : this.beginPreflight(cockroach, motion);
       onPhaseChange?.(change);
     }
-    return false;
   }
 
   private updateGround(cockroach: Cockroach, motion: CockroachMotion, deltaMs: number): void {
@@ -277,10 +314,53 @@ export class CockroachAI {
     const control = lerpVec3(start, end, 0.5);
     control.y += 0.9;
     const velocity = scale(subtract(control, start), 2 * FLIGHT_INITIAL_RATE * 1_000 / FLIGHT_MS);
-    cockroach.flightCurve = { start, control, end };
+    this.setFlightLeg(cockroach, motion, { start, control, end }, null);
     cockroach.state = 'flying';
     cockroach.hitboxRadius = FLYING_HITBOX_RADIUS;
-    motion.flightPhaseRemainingMs = FLIGHT_MS;
     return { state: 'flying', cockroachId: cockroach.id, position: { ...start }, velocity };
+  }
+
+  private setFlightLeg(cockroach: Cockroach, motion: CockroachMotion, curve: BezierCurve, landing: SurfacePoint | null): void {
+    const contact = this.geometry && firstContact(curve, this.geometry.roomBounds, this.geometry.colliders);
+    let fraction = 1;
+    if (contact?.surface) {
+      fraction = contact.progress;
+      landing = contact.surface;
+      // Preserve the portion of the quadratic up to contact.
+      curve = { start: curve.start, control: lerpVec3(curve.start, curve.control, fraction), end: landing.position };
+    }
+    motion.landing = landing;
+    motion.flightDurationMs = Math.max(1, FLIGHT_MS * fraction);
+    motion.flightPhaseRemainingMs = motion.flightDurationMs;
+    cockroach.flightCurve = curve;
+    cockroach.flightProgress = 0;
+  }
+
+  private descend(cockroach: Cockroach, motion: CockroachMotion): void {
+    const start = { ...cockroach.position };
+    const floor = this.geometry?.roomBounds.min.y;
+    const landing: SurfacePoint = floor === undefined ? motion.support : {
+      position: { ...start, y: floor }, surfaceType: 'floor', surfaceNormal: { x: 0, y: 1, z: 0 },
+    };
+    this.setFlightLeg(cockroach, motion, { start, control: lerpVec3(start, landing.position, 0.5), end: landing.position }, landing);
+  }
+
+  private land(cockroach: Cockroach, motion: CockroachMotion, point: SurfacePoint): void {
+    // Reuse the authored surface type for crawling on a known furniture face.
+    const marker = this.waypoints.find(candidate => candidate.supportBounds && point.supportBounds
+      && candidate.supportId === point.supportId && dot(candidate.surfaceNormal, point.surfaceNormal) > 0.999
+      && contains(candidate.supportBounds, point.position));
+    motion.support = marker ? { ...point, surfaceType: marker.surfaceType } : point;
+    motion.previous = null;
+    motion.landing = null;
+    motion.flightPhaseRemainingMs = lerp(3_000, 8_000, this.random());
+    Object.assign(cockroach.position, point.position);
+    Object.assign(cockroach.surfaceNormal, point.surfaceNormal);
+    Object.assign(cockroach.groundFacing, tangent(point.surfaceNormal));
+    cockroach.surfaceType = motion.support.surfaceType;
+    cockroach.hitboxRadius = CRAWLING_HITBOX_RADIUS;
+    cockroach.flightCurve = null;
+    cockroach.flightProgress = 0;
+    this.beginIdle(cockroach, motion);
   }
 }

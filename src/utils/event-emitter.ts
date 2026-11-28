@@ -38,7 +38,7 @@ export interface GameEvents {
   COCKROACH_MOVED: Pose & { cockroachId: number; state: CockroachState; groundFacing: Vec3; speed: number };
   COCKROACH_PREFLIGHT: CockroachPositionEvent;
   COCKROACH_FLYING: CockroachPositionEvent & { velocity: Vec3 };
-  COCKROACH_DESPAWNED: { cockroachId: number; reason: 'killed' | 'reached_player' };
+  COCKROACH_DESPAWNED: { cockroachId: number; reason: 'killed' };
   KILL_COUNT_UPDATED: { kills: number };
   ACHIEVEMENT_UNLOCKED: {
     achievementId: string;

@@ -152,7 +152,7 @@ describe('CockroachAI', () => {
     expect(cockroach.position.z).toBeGreaterThan(0);
   });
 
-  it('rests parallel to the wall when its destination is on the floor–wall seam', () => {
+  it('rests parallel to the wall when its destination is on the floorâ€“wall seam', () => {
     const seamMarker = { ...adjacent, position: { x: 0.5, y: 0, z: 0 } };
     const ai = new CockroachAI([start], [seamMarker], () => 0);
     const cockroach = createCockroach(0);
@@ -400,8 +400,27 @@ describe('Hell flight', () => {
     ai.update(cockroach, 300, player);
     expect(distanceToCamera() - firstStep).toBeGreaterThan(firstStep);
 
-    expect(ai.update(cockroach, 2_000, { x: 8, y: 3, z: -3 })).toBe(true);
-    expect(cockroach.flightProgress).toBe(1);
+    ai.update(cockroach, 1_400, { x: 8, y: 3, z: -3 });
     expect(cockroach.position).toEqual(end);
+    expect(cockroach.flightCurve?.start).toEqual(end);
+    expect(cockroach.alive).toBe(true);
+  });
+
+  it.each([
+    { surface: 'wall', cameraX: 5, plane: 2, axis: 'x' as const, normal: -1 },
+    { surface: 'furniture', cameraX: 1.5, plane: 0.8, axis: 'x' as const, normal: -1 },
+    { surface: 'floor', cameraX: 0, plane: 0, axis: 'y' as const, normal: 1 },
+  ])('lands alive on the $surface even in one long tick', ({ surface, cameraX, plane, axis, normal }) => {
+    const roomBounds = { min: { x: -2, y: 0, z: -2 }, max: { x: 2, y: 4, z: 4 } };
+    const colliders = surface === 'furniture'
+      ? [{ min: { x: plane, y: 0, z: -2 }, max: { x: plane + 0.02, y: 3, z: 4 } }]
+      : [];
+    const ai = new CockroachAI([start], [], () => 0.5, 'hell', { roomBounds, colliders });
+    const roach = createCockroach(0);
+    ai.spawn(roach);
+    ai.update(roach, 11_000, { x: cameraX, y: 1.6, z: 1 });
+    expect(roach).toMatchObject({ alive: true, surfaceType: surface, flightCurve: null, hitboxRadius: 0.06 });
+    expect(roach.position[axis]).toBeCloseTo(plane);
+    expect(roach.surfaceNormal[axis]).toBe(normal);
   });
 });

@@ -91,18 +91,18 @@ function expectMapEmpties(nodes: GlbDocument['nodes'], surfaces: string[]) {
 }
 
 describe('model asset contract', () => {
-  it('weapons/slipper.glb animates the right hand or wrist in swing', () => {
+  it('weapons/slipper.glb animates the slipper in swing', () => {
     const { doc } = parseGlb(assetBytes('models/weapons/slipper.glb'));
     const swing = doc.animations?.find(({ name }) => name === 'swing');
-    const hasHandMotion = swing?.channels.some(({ target }) => {
+    const hasSlipperMotion = swing?.channels.some(({ target }) => {
       if (target.node === undefined || (target.path !== 'translation' && target.path !== 'rotation')) {
         return false;
       }
       const name = doc.nodes[target.node]?.name;
-      return name === 'right_hand' || name === 'right_wrist';
+      return name === 'slipper';
     });
 
-    expect(hasHandMotion, 'swing must target right_hand or right_wrist with a translation or rotation channel').toBe(true);
+    expect(hasSlipperMotion, 'swing must target the slipper with a translation or rotation channel').toBe(true);
   });
 
   it.each(models)('$path fits its geometry, compression and content budgets', ({ path, maxBytes, maxTriangles, clips, surfaces }) => {

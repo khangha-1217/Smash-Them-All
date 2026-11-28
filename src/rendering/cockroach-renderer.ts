@@ -20,7 +20,8 @@ interface RoachView {
 }
 
 const MODEL_SCALE = 3.8;
-const MODEL_FOOT_OFFSET = 0.006 * MODEL_SCALE;
+// The source opens its wings twelve frames into the 30 fps flight take.
+const WINGS_OPEN_TIME = 12 / 30;
 const CRAWL_REFERENCE_SPEED = 0.2; // Ground speed in m/s at the clip's authored cadence.
 const FLOOR_NORMAL = new Vector3(0, 1, 0);
 const CRAWL_FORWARD = new Vector3(0, 0, -1);
@@ -41,7 +42,7 @@ export class CockroachRenderer {
     const crawlClip = model.animations.find(clip => clip.name === 'crawl');
     const flyClip = model.animations.find(clip => clip.name === 'fly');
     if (!idleClip || !crawlClip || !flyClip) throw new Error('Cockroach is missing an idle, crawl or fly animation');
-    // The first frame of the flight clip holds the wings open before takeoff.
+    // Use a separate action so holding the takeoff pose does not pause flight.
     const wingsOpenClip = flyClip.clone();
 
     shadeModel(model.scene);
@@ -49,6 +50,7 @@ export class CockroachRenderer {
       const root = new Group();
       const mesh = clone(model.scene);
       mesh.scale.setScalar(MODEL_SCALE);
+      mesh.rotation.y = Math.PI; // The imported head points toward +Z.
       root.add(mesh);
       root.visible = false;
       this.group.add(root);
@@ -91,7 +93,6 @@ export class CockroachRenderer {
     if (!view) return;
     if (state === 'flying') {
       this.move.copy(position).sub(view.position);
-      if (view.active !== view.actions.flying) this.move.addScaledVector(view.up, MODEL_FOOT_OFFSET);
       if (this.move.lengthSq() > 1e-8) {
         view.facing.copy(this.move).normalize();
         view.up.copy(FLOOR_NORMAL).projectOnPlane(view.facing);
@@ -148,7 +149,7 @@ export class CockroachRenderer {
 
   private setPose(view: RoachView, position: Vec3, normal: Vec3): void {
     view.up.copy(normal);
-    view.position.copy(position).addScaledVector(view.up, MODEL_FOOT_OFFSET);
+    view.position.copy(position);
     view.facing.projectOnPlane(view.up);
     if (view.facing.lengthSq() < 1e-8) {
       if (Math.abs(view.up.x) > 0.7) view.facing.copy(CRAWL_FORWARD);
@@ -172,6 +173,7 @@ export class CockroachRenderer {
 
     view.active.fadeOut(0.1);
     action.reset().fadeIn(0.1).play();
+    if (state === 'preflight' || state === 'flying') action.time = WINGS_OPEN_TIME;
     view.active = action;
   }
 }

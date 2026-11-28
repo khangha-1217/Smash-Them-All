@@ -14,7 +14,7 @@ import type { ActiveSwing, Cockroach, MapData, Rank, Round, RoundConfig, RoundRe
 
 const DEFAULT_NORMAL_POOL_SIZE = 20;
 const DEFAULT_HELL_POOL_SIZE = 32;
-const RESPAWN_DELAY_MS = 350;
+const RESPAWN_DELAY_MS = 1_000;
 
 export interface RoundOptions {
   normalPoolSize?: number;
@@ -28,7 +28,7 @@ interface RoundResources {
   population: number;
 }
 
-type Navigation = Pick<MapData, 'spawnPoints' | 'waypoints'>;
+type Navigation = Pick<MapData, 'spawnPoints' | 'waypoints'> & Partial<Pick<MapData, 'roomBounds' | 'colliders'>>;
 
 export class RoundController {
   private readonly machine: StateMachine;
@@ -101,7 +101,7 @@ export class RoundController {
     });
   }
 
-  ready({ spawnPoints, waypoints }: Navigation): boolean {
+  ready({ spawnPoints, waypoints, roomBounds, colliders }: Navigation): boolean {
     return this.command(() => {
       if (this.state !== 'LOADING') return false;
       if (spawnPoints.length === 0) {
@@ -112,7 +112,8 @@ export class RoundController {
       const mode = this.config!.mode;
       const population = mode === 'hell' ? this.hellPoolSize : this.normalPoolSize;
       this.resources = {
-        ai: new CockroachAI([...spawnPoints], [...waypoints], this.random, mode),
+        ai: new CockroachAI([...spawnPoints], [...waypoints], this.random, mode,
+          roomBounds && { roomBounds, colliders: colliders ?? [] }),
         pool: new ObjectPool(population, createCockroach, (slot) => { slot.alive = false; }),
         population,
       };
@@ -253,10 +254,7 @@ export class RoundController {
     let remainingMs = deltaMs;
     while (remainingMs > 0) {
       const nextRespawnAt = this.respawnsAt[0] ?? Infinity;
-      let stepMs = Math.min(remainingMs, nextRespawnAt - this.timer.elapsedMs);
-      for (const cockroach of resources.pool.active) {
-        stepMs = Math.min(stepMs, resources.ai.timeUntilArrival(cockroach));
-      }
+      const stepMs = Math.min(remainingMs, nextRespawnAt - this.timer.elapsedMs);
 
       this.timer.advance(stepMs);
       if (this.timer.timeRemaining === 0) return;
@@ -273,7 +271,7 @@ export class RoundController {
   private advanceCockroaches(resources: RoundResources, elapsedMs: number, activeMs: number): void {
     this.combo.update(activeMs);
     for (const cockroach of resources.pool.active) {
-      const reachedPlayer = resources.ai.update(cockroach, elapsedMs, this.playerPosition, this.emitFlightPhase);
+      resources.ai.update(cockroach, elapsedMs, this.playerPosition, this.emitFlightPhase);
       const { x, y, z } = cockroach.surfaceNormal;
       this.events.emit('COCKROACH_MOVED', {
         cockroachId: cockroach.id,
@@ -284,11 +282,6 @@ export class RoundController {
         groundFacing: { ...cockroach.groundFacing },
         speed: cockroach.speed,
       });
-      if (reachedPlayer) {
-        resources.pool.release(cockroach);
-        this.respawnsAt.push(activeMs + RESPAWN_DELAY_MS);
-        this.events.emit('COCKROACH_DESPAWNED', { cockroachId: cockroach.id, reason: 'reached_player' });
-      }
     }
   }
 
